@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel, Q
                                QMessageBox, QPushButton, QScrollArea, QSplitter, QStackedWidget, QVBoxLayout,
                                QWidget)
 
+from .. import __version__
 from .. import gamedata as gd
 from .. import imaging, packio
 from ..guides import GuideStore
@@ -46,7 +47,8 @@ class MainWindow(QMainWindow):
         lay = QVBoxLayout(page)
         lay.addStretch(1)
         title = QLabel(f"<h1>{APP_NAME}</h1><p>Build BannerShare and ShieldShare packs. "
-                       "A pack holds only shields or only banners.</p>")
+                       "A pack holds only shields or only banners.</p>"
+                       f"<p style='color: gray;'>Version {__version__}</p>")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(title)
         row = QHBoxLayout()
@@ -115,7 +117,20 @@ class MainWindow(QMainWindow):
         act("Pattern guide folder…", self.choose_templates_dir)
         m.addSeparator()
         act("Quit", self.close, QKeySequence.StandardKey.Quit)
+        m = self.menuBar().addMenu("&Help")
+        act("About…", self.show_about)
         self._enable_pack_actions(False)
+
+    def show_about(self) -> None:
+        QMessageBox.about(self, f"About {APP_NAME}", (
+            f"<h3>{APP_NAME} {__version__}</h3>"
+            "<p>Builds pack zips for the BannerShare and ShieldShare Valheim mods.<br>"
+            "Made by Hippoflotomas. Free to use.</p>"
+            "<p>Built with Python, Qt and PySide6 (used under the GNU LGPL v3), Pillow and NumPy. "
+            "Their licence texts are in the <i>licenses</i> folder next to the program, and "
+            "Qt's source code is available from <a href='https://download.qt.io/'>download.qt.io</a>.</p>"
+            "<p>If something goes wrong, details are saved to "
+            "<i>%LOCALAPPDATA%\\ValheimPackBuilder\\error.log</i>.</p>"))
 
     def _enable_pack_actions(self, on: bool) -> None:
         self.export_act.setEnabled(on)

@@ -5,10 +5,10 @@ __pycache__/
 .venv/
 venv/
 
-# PyInstaller output (build_exe.bat regenerates the .spec each run)
+# Build output (build_exe.bat / packaging/build.py)
 build/
 dist/
-*.spec
+release/
 
 # Exported / packaged zips
 *.zip

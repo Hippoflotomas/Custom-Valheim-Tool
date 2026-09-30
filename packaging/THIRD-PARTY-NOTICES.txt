@@ -1,0 +1,41 @@
+Third-party software in Valheim Pack Builder
+============================================
+
+This program is made with the following software. Their full licence texts are in the
+"licenses" folder next to this file.
+
+
+Qt 6 and PySide6 (Qt for Python)
+  Copyright (C) The Qt Company Ltd. and other contributors.
+  Used under the GNU Lesser General Public License, version 3 (LGPL-3.0-only).
+  Licence texts: licenses/Qt-PySide6/LGPL-3.0-only.txt and GPL-3.0-only.txt
+  (the LGPL builds on the GPL, so both are included).
+  Qt and PySide6 have not been modified. Their libraries are the separate Qt6*.dll,
+  PySide6 and shiboken6 files inside the _internal folder, and can be replaced with
+  compatible versions of your own.
+  Source code:  Qt       https://download.qt.io/official_releases/qt/
+                PySide6  https://code.qt.io/cgit/pyside/pyside-setup.git/
+                         https://pypi.org/project/PySide6/#files
+
+Pillow
+  Copyright (C) 1997-2011 Secret Labs AB, 1995-2011 Fredrik Lundh and contributors,
+  2010 Jeffrey 'Alex' Clark and contributors.
+  MIT-CMU licence (HPND). Licence text: licenses/Pillow/
+
+NumPy
+  Copyright (C) 2005-2025 NumPy Developers.
+  BSD 3-Clause licence, with the licences of the libraries NumPy bundles.
+  Licence texts: licenses/NumPy/
+
+Python
+  Copyright (C) 2001 Python Software Foundation. All rights reserved.
+  Python Software Foundation License. Licence text: licenses/Python/LICENSE.txt
+
+PyInstaller
+  Used to package the program. Its bootloader is under the GPL with an exception that
+  allows it to be used for programs like this one under any licence.
+  https://pyinstaller.org/
+
+Microsoft Visual C++ runtime
+  vcruntime and related DLLs are redistributed as permitted by Microsoft's licence terms
+  for those files.

@@ -1,0 +1,66 @@
+# Builds the Windows download on GitHub's own Windows machines.
+#
+#   Release:  bump __version__ in packbuilder/__init__.py, commit, then push a matching tag:
+#               git tag v1.0.0
+#               git push origin v1.0.0
+#             The zip is published on the repo's Releases page, and this link always gets
+#             the newest one (for the mod pages):
+#               https://github.com/Hippoflotomas/Custom-Valheim-Tool/releases/latest/download/ValheimPackBuilder-windows.zip
+#
+#   Test build without releasing: Actions tab > Release > Run workflow. The zip appears
+#   under the run's Artifacts.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write     # to publish the release
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: python -m pip install -r requirements.txt pyinstaller pytest
+
+      - name: Check the tag matches the version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path packbuilder/__init__.py -Pattern '__version__\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+          if ("v$v" -ne "${{ github.ref_name }}") {
+            throw "Tag ${{ github.ref_name }} doesn't match __version__ = '$v' in packbuilder/__init__.py"
+          }
+
+      - name: Test, build, self-test the built exe, zip
+        run: python packaging/build.py
+
+      - name: Name the zip for the permanent download link
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          Copy-Item dist/ValheimPackBuilder-*-windows.zip release/ValheimPackBuilder-windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ValheimPackBuilder-windows
+          path: release/ValheimPackBuilder-windows.zip
+          if-no-files-found: error
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Valheim Pack Builder ${{ github.ref_name }}
+          files: release/ValheimPackBuilder-windows.zip
+          generate_release_notes: true
