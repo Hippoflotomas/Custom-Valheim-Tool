@@ -236,6 +236,55 @@ def test_open_duplicate_style_numbers(tmp_path: Path | None = None):
     assert len(pack.items[0].art) == 2
     assert any("two pattern files for style 2" in n for n in notes)
 
+
+def test_rotation_geometry():
+    # quarter turns are exact and clockwise: the top-left pixel ends up top-right
+    img = Image.new("RGBA", (100, 50), (0, 0, 0, 0))
+    img.putpixel((0, 0), (255, 0, 0, 255))
+    r = imaging.rotate_image(img, 90)
+    assert r.size == (50, 100) and r.getpixel((49, 0)) == (255, 0, 0, 255)
+    assert imaging.rotated_size(100, 50, 90) == (50, 100)
+    w, h = imaging.rotated_size(100, 100, 45)
+    assert abs(w - 100 * 2 ** 0.5) < 1e-9 and abs(h - w) < 1e-9
+    assert imaging.normalise_angle(270) == -90 and imaging.normalise_angle(-180) == 180
+    # changing the angle keeps the centre and the scale
+    p = Placement(2.0, 10.0, 20.0)
+    q = imaging.with_rotation(p, (100, 50), 0, 90)
+    assert q.scale == 2.0
+    assert (p.ox + 100, p.oy + 50) == (q.ox + 50, q.oy + 100)
+
+
+def test_rotated_fill_leaves_no_gaps():
+    box = (50, 60, 450, 400)
+    for size, deg in [((300, 200), a) for a in (0, 17.5, 45, 90, -120)] + [((40, 40), 30), ((2000, 1500), 30)]:
+        src = Image.new("RGBA", size, (10, 200, 10, 255))
+        p = imaging.auto_fit(src.size, box, "fill", deg)
+        out = np.asarray(imaging.render_placed(src, p, (512, 512), deg))
+        inner = out[box[1]:box[3], box[0]:box[2], 3]        # every pixel of the box, corners included
+        assert inner.min() == 255, deg
+        # "fit" keeps the whole rotated image inside the box
+        p = imaging.auto_fit(src.size, box, "fit", deg)
+        rw, rh = imaging.rotated_size(*src.size, deg)
+        assert p.ox >= box[0] - 1e-6 and p.ox + rw * p.scale <= box[2] + 1e-6
+        assert p.oy >= box[1] - 1e-6 and p.oy + rh * p.scale <= box[3] + 1e-6
+
+
+def test_rotation_exported_and_kept_on_refit(tmp_path: Path | None = None):
+    tmp = Path(tmp_path or tempfile.mkdtemp())
+    pack, guides = build_pack(tmp, gd.BANNER)
+    it = pack.items[0]
+    src = Image.new("RGBA", (1000, 400), (255, 0, 0, 255))
+    src.paste((0, 0, 255, 255), (500, 0, 1000, 400))    # left red, right blue
+    it.art = [Art(src, "wide.png", rotation=90)]       # a quarter turn clockwise: top red, bottom blue
+    packio.ensure_placement(gd.BANNER, it, it.art[0], guides)
+    assert it.art[0].placement.scale == 1.0             # 400x1000 after turning: fits exactly
+    main = Image.open(io.BytesIO(packio.item_files(gd.BANNER, it, guides)["MainTex.png"]))
+    assert main.size == (400, 1000)
+    assert main.getpixel((200, 100))[:3] == (255, 0, 0) and main.getpixel((200, 900))[:3] == (0, 0, 255)
+    it.art[0].placement = None                          # e.g. base prefab changed
+    packio.ensure_placement(gd.BANNER, it, it.art[0], guides)
+    assert it.art[0].rotation == 90 and it.art[0].placement.scale == 1.0
+
 def test_prefab_recipes():
     from packbuilder.model import apply_recipe, matches_recipe
     # every prefab has a recipe, and every recipe item is in the picker list

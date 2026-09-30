@@ -3,6 +3,7 @@ edge bleed and icon generation."""
 from __future__ import annotations
 
 import io
+import math
 import os
 import sys
 from dataclasses import dataclass
@@ -20,6 +21,7 @@ FACE_LUMA_THRESHOLD = 180
 MASK_CLOSE_SIZE = 5      # 5x5 close = 2 px: bridges the crosshair and anti-aliasing seams
 EDGE_BLEED_PX = 8        # colour extended past the face outline so no wood shows at the rim
 BANNER_ICON_SIZE = 128
+FILL_MARGIN_PX = 3       # soft-edge allowance for rotated fills, in both source and output px
 
 
 # ---------------------------------------------------------------- locations
@@ -123,24 +125,95 @@ def face_mask(guide: Image.Image) -> Image.Image:
     return Image.fromarray(np.minimum(np.asarray(mask), np.asarray(sil)), "L")
 
 
+# ---------------------------------------------------------------- rotation
+
+def normalise_angle(deg: float) -> float:
+    """Any angle as the equivalent in (-180, 180]."""
+    deg = math.fmod(deg, 360.0)
+    if deg <= -180.0:
+        deg += 360.0
+    elif deg > 180.0:
+        deg -= 360.0
+    return 0.0 if abs(deg) < 1e-9 else deg
+
+
+def _quarter_turns(deg: float) -> int | None:
+    """0-3 clockwise quarter turns if ``deg`` is a multiple of 90, else None."""
+    q = deg / 90.0
+    if abs(q - round(q)) < 1e-9:
+        return int(round(q)) % 4
+    return None
+
+
+def rotated_size(w: float, h: float, deg: float) -> tuple[float, float]:
+    """Bounding box of a w x h rectangle rotated by ``deg``. Exact for quarter turns."""
+    q = _quarter_turns(deg)
+    if q is not None:
+        return (h, w) if q % 2 else (w, h)
+    c, s = abs(math.cos(math.radians(deg))), abs(math.sin(math.radians(deg)))
+    return (w * c + h * s, w * s + h * c)
+
+
+def rotate_image(img: Image.Image, deg: float) -> Image.Image:
+    """Rotate clockwise by ``deg``, expanding the canvas. Quarter turns are lossless; other
+    angles are resampled with premultiplied alpha so transparent edges don't go dark."""
+    q = _quarter_turns(deg)
+    if q is not None:
+        return img if q == 0 else img.transpose(
+            {1: Image.Transpose.ROTATE_270, 2: Image.Transpose.ROTATE_180, 3: Image.Transpose.ROTATE_90}[q])
+    return img.convert("RGBa").rotate(-deg, resample=Image.BICUBIC, expand=True).convert("RGBA")
+
+
+def with_rotation(p: Placement, src_size: tuple[int, int], old_deg: float, new_deg: float) -> Placement:
+    """The same placement after the art's rotation changes: scale kept, centre kept."""
+    ow, oh = rotated_size(*src_size, old_deg)
+    nw, nh = rotated_size(*src_size, new_deg)
+    cx, cy = p.ox + ow * p.scale / 2, p.oy + oh * p.scale / 2
+    return Placement(p.scale, cx - nw * p.scale / 2, cy - nh * p.scale / 2)
+
+
 # ---------------------------------------------------------------- placement
 
-def auto_fit(src_size: tuple[int, int], box: tuple[int, int, int, int], mode: str = "fill") -> Placement:
-    """Centre the source on ``box`` (l, t, r, b). ``fill`` covers the box, ``fit`` fits inside it."""
+def auto_fit(src_size: tuple[int, int], box: tuple[int, int, int, int], mode: str = "fill",
+             rotation: float = 0.0) -> Placement:
+    """Centre the (rotated) source on ``box`` (l, t, r, b).
+
+    ``fill``: the rotated image covers the whole box, so no gaps even at an angle.
+    ``fit``: the rotated image's bounding box fits inside the box.
+    """
     sw, sh = src_size
     l, t, r, b = box
     bw, bh = r - l, b - t
-    sx, sy = bw / sw, bh / sh
-    s = max(sx, sy) if mode == "fill" else min(sx, sy)
-    return Placement(s, l + (bw - sw * s) / 2, t + (bh - sh * s) / 2)
+    rw, rh = rotated_size(sw, sh, rotation)
+    if mode == "fill" and _quarter_turns(rotation) is None:
+        c, s_ = abs(math.cos(math.radians(rotation))), abs(math.sin(math.radians(rotation)))
+        # The box, seen in the image's own (unrotated) axes, must fit inside the image. A rotated
+        # edge is soft - a few source pixels from the rotation, and a few output pixels from
+        # resizing - so leave both margins, or the box corners come out half-transparent.
+        m = FILL_MARGIN_PX
+        ew, eh = bw + 2 * m, bh + 2 * m
+        uw, uh = max(sw - 2 * m, 1), max(sh - 2 * m, 1)
+        s = max((ew * c + eh * s_) / uw, (ew * s_ + eh * c) / uh)
+    elif mode == "fill":
+        s = max(bw / rw, bh / rh)
+    else:
+        s = min(bw / rw, bh / rh)
+    return Placement(s, l + (bw - rw * s) / 2, t + (bh - rh * s) / 2)
 
 
-def render_placed(src: Image.Image, p: Placement, size: tuple[int, int]) -> Image.Image:
-    """Draw ``src`` at placement ``p`` onto a transparent canvas of ``size``.
+def render_placed(src: Image.Image, p: Placement, size: tuple[int, int], rotation: float = 0.0) -> Image.Image:
+    """Draw ``src``, rotated by ``rotation``, at placement ``p`` onto a transparent canvas of ``size``.
 
     Crops the source to the visible part before resizing, so large zooms of large
     images don't allocate huge intermediate images.
     """
+    if normalise_angle(rotation):
+        # Rotate first, then place the result by its centre: Pillow's expanded canvas can be a
+        # pixel off the exact bounding box, and the centre is what the preview draws around.
+        rw, rh = rotated_size(*src.size, rotation)
+        cx, cy = p.ox + rw * p.scale / 2, p.oy + rh * p.scale / 2
+        src = rotate_image(src, rotation)
+        p = Placement(p.scale, cx - src.width * p.scale / 2, cy - src.height * p.scale / 2)
     W, H = size
     canvas = Image.new("RGBA", size, (0, 0, 0, 0))
     s = p.scale
@@ -189,14 +262,14 @@ def edge_bleed(img: Image.Image, mask: Image.Image, px: int = EDGE_BLEED_PX) -> 
     return Image.fromarray(np.clip(a + 0.5, 0, 255).astype(np.uint8), "RGBA")
 
 
-def render_shield_pattern(src: Image.Image, p: Placement, guide: FaceGuide) -> Image.Image:
+def render_shield_pattern(src: Image.Image, p: Placement, guide: FaceGuide, rotation: float = 0.0) -> Image.Image:
     """PatternN.png: the art placed in the guide's frame, transparency kept, edge colours bled."""
-    placed = render_placed(src, p, guide.size)
+    placed = render_placed(src, p, guide.size, rotation)
     return edge_bleed(placed, guide.mask)
 
 
-def render_banner(src: Image.Image, p: Placement, size: tuple[int, int]) -> Image.Image:
-    return render_placed(src, p, size)
+def render_banner(src: Image.Image, p: Placement, size: tuple[int, int], rotation: float = 0.0) -> Image.Image:
+    return render_placed(src, p, size, rotation)
 
 
 def make_icon(img: Image.Image, size: int = BANNER_ICON_SIZE) -> Image.Image:

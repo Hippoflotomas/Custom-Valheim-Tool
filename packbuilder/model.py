@@ -50,7 +50,8 @@ class Placement:
     """Where the source image sits in the output frame.
 
     ``scale`` is output pixels per source pixel; ``ox``/``oy`` is the position
-    of the source's top-left corner in output pixels.
+    of the source's top-left corner in output pixels. If the art is rotated, they
+    describe the rotated image's bounding box (see ``imaging.rotated_size``).
     """
     scale: float
     ox: float
@@ -63,6 +64,7 @@ class Art:
     source: Image.Image           # RGBA, transparent margins already trimmed
     label: str = ""               # file name it came from, for the list
     placement: Placement | None = None  # None = auto-fit when first shown/exported
+    rotation: float = 0.0         # degrees clockwise, applied before placement; kept across re-fits
 
 
 @dataclass

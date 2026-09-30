@@ -1,4 +1,4 @@
-"""Crop/placement preview: drag to pan, wheel or slider to zoom."""
+"""Crop/placement preview: drag to pan, wheel to zoom, Shift+wheel to rotate."""
 from __future__ import annotations
 
 from PIL import Image
@@ -6,6 +6,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPen
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
+from .. import imaging
 from ..model import Placement
 
 WOOD = QColor(128, 96, 62)       # stands in for "plain wood" where the art is transparent
@@ -25,6 +26,7 @@ class CropView(QWidget):
     frame into the widget with ``_view_scale`` and ``_view_origin``.
     """
     placementChanged = Signal()
+    rotateRequested = Signal(float)   # degrees to add (Shift+wheel); the editor applies it
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -38,6 +40,8 @@ class CropView(QWidget):
         self.message = ""
         self._src: QImage | None = None
         self._src_factor = 1.0          # preview-copy pixels per real source pixel
+        self._src_size = (1, 1)         # real source size, for the rotated bounding box
+        self._rotation = 0.0
         self._placement: Placement | None = None
         self._drag_from: QPointF | None = None
 
@@ -48,7 +52,8 @@ class CropView(QWidget):
         self.transparent_is_wood = transparent_is_wood
         self.update()
 
-    def set_source(self, img: Image.Image | None, placement: Placement | None) -> None:
+    def set_source(self, img: Image.Image | None, placement: Placement | None, rotation: float = 0.0) -> None:
+        self._rotation = rotation
         if img is None:
             self._src = None
         else:
@@ -56,7 +61,13 @@ class CropView(QWidget):
             small = img if f >= 1.0 else img.resize((max(1, round(img.width * f)), max(1, round(img.height * f))),
                                                      Image.LANCZOS)
             self._src_factor = small.width / img.width
+            self._src_size = img.size
             self._src = pil_to_qimage(small)
+        self._placement = placement
+        self.update()
+
+    def set_rotation(self, deg: float, placement: Placement) -> None:
+        self._rotation = deg
         self._placement = placement
         self.update()
 
@@ -108,8 +119,14 @@ class CropView(QWidget):
         if self._src is not None and self._placement is not None:
             p = self._placement
             k = s * p.scale / self._src_factor
-            target = QRectF(o.x() + p.ox * s, o.y() + p.oy * s, self._src.width() * k, self._src.height() * k)
-            qp.drawImage(target, self._src)
+            # Draw around the centre of the rotated bounding box, as imaging.render_placed does.
+            rw, rh = imaging.rotated_size(*self._src_size, self._rotation)
+            qp.save()
+            qp.translate(o.x() + (p.ox + rw * p.scale / 2) * s, o.y() + (p.oy + rh * p.scale / 2) * s)
+            qp.rotate(self._rotation)            # clockwise on screen, like the export
+            w, h = self._src.width() * k, self._src.height() * k
+            qp.drawImage(QRectF(-w / 2, -h / 2, w, h), self._src)
+            qp.restore()
         if self.overlay is not None:
             qp.drawImage(frame_rect, self.overlay)
         qp.restore()
@@ -162,8 +179,11 @@ class CropView(QWidget):
     def wheelEvent(self, e):
         if self._placement is None:
             return
+        steps = e.angleDelta().y() / 120 or e.angleDelta().x() / 120  # Shift can turn wheel into x
+        if e.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+            self.rotateRequested.emit(steps)    # 1 degree per notch
+            return
         s, o = self._view()
         pos = e.position()
         anchor = QPointF((pos.x() - o.x()) / s, (pos.y() - o.y()) / s)
-        steps = e.angleDelta().y() / 120
         self.zoom_by(1.1 ** steps, anchor)

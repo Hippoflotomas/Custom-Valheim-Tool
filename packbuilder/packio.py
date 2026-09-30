@@ -46,7 +46,7 @@ def fit_box(kind: str, item: Item, guides: GuideStore | None) -> tuple[int, int,
 
 def ensure_placement(kind: str, item: Item, art: Art, guides: GuideStore | None, mode: str = "fill") -> Placement:
     if art.placement is None:
-        art.placement = imaging.auto_fit(art.source.size, fit_box(kind, item, guides), mode)
+        art.placement = imaging.auto_fit(art.source.size, fit_box(kind, item, guides), mode, art.rotation)
     return art.placement
 
 
@@ -115,7 +115,7 @@ def validate(pack: Pack, guides: GuideStore | None) -> list[Issue]:
             if kind == gd.SHIELD and guides is not None and guides.get(it.base_prefab) is None:
                 continue
             # Don't store an auto-fit here: validation must not change the pack.
-            p = art.placement or imaging.auto_fit(art.source.size, fit_box(kind, it, guides))
+            p = art.placement or imaging.auto_fit(art.source.size, fit_box(kind, it, guides), "fill", art.rotation)
             if imaging.is_upscaled(p):
                 what = f"Style {i}" if kind == gd.SHIELD else "The image"
                 warn(f"{what} ({art.label or 'image'}) is enlarged {p.scale:.1f}x and may look soft.")
@@ -162,11 +162,11 @@ def item_files(kind: str, it: Item, guides: GuideStore | None) -> dict[str, byte
             raise ValueError(f"{it.id}: no pattern guide for {it.base_prefab}.")
         for n, art in enumerate(it.art, 1):
             p = ensure_placement(kind, it, art, guides)
-            files[f"Pattern{n}.png"] = imaging.png_bytes(imaging.render_shield_pattern(art.source, p, guide))
+            files[f"Pattern{n}.png"] = imaging.png_bytes(imaging.render_shield_pattern(art.source, p, guide, art.rotation))
     else:
         art = it.art[0]
         p = ensure_placement(kind, it, art, guides)
-        main = imaging.render_banner(art.source, p, frame_size(kind, it, guides))
+        main = imaging.render_banner(art.source, p, frame_size(kind, it, guides), art.rotation)
         files["MainTex.png"] = imaging.png_bytes(main)
         files["Icon.png"] = imaging.png_bytes(imaging.make_icon(main))
     for name in gd.ADVANCED_LAYERS[kind]:

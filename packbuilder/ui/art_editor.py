@@ -5,8 +5,8 @@ from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QIcon, QPixmap
-from PySide6.QtWidgets import (QAbstractItemView, QFileDialog, QHBoxLayout, QLabel, QListWidget,
-                               QListWidgetItem, QMessageBox, QPushButton, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractItemView, QDoubleSpinBox, QFileDialog, QHBoxLayout, QLabel,
+                               QListWidget, QListWidgetItem, QMessageBox, QPushButton, QVBoxLayout, QWidget)
 
 from .. import gamedata as gd
 from .. import imaging, packio
@@ -67,6 +67,7 @@ class ArtEditor(QWidget):
         self.view = CropView()
         self.view.setMinimumHeight(380)
         self.view.placementChanged.connect(self._placement_changed)
+        self.view.rotateRequested.connect(lambda d: self._rotate_to(self._rotation() + d))
         right.addWidget(self.view, 1)
         ctl = QHBoxLayout()
         self.zoom_out = QPushButton("−")
@@ -88,7 +89,34 @@ class ArtEditor(QWidget):
         ctl.addStretch(1)
         ctl.addWidget(self.scale_label)
         right.addLayout(ctl)
-        self.hint = QLabel("Drag to move, scroll to zoom.")
+
+        rot = QHBoxLayout()
+        self.rot_left = QPushButton("↺ 90°")
+        self.rot_right = QPushButton("↻ 90°")
+        self.rot_left.setToolTip("Rotate a quarter turn anticlockwise")
+        self.rot_right.setToolTip("Rotate a quarter turn clockwise")
+        self.rot_left.clicked.connect(lambda: self._rotate_to(self._rotation() - 90))
+        self.rot_right.clicked.connect(lambda: self._rotate_to(self._rotation() + 90))
+        self.angle = QDoubleSpinBox()
+        self.angle.setRange(-180.0, 180.0)
+        self.angle.setDecimals(1)
+        self.angle.setSingleStep(1.0)
+        self.angle.setWrapping(True)
+        self.angle.setSuffix("°")
+        self.angle.setKeyboardTracking(False)     # apply when Enter is pressed, not on every keystroke
+        self.angle.setToolTip("Angle, clockwise. Shift+scroll over the preview turns it 1° per notch.")
+        self.angle.valueChanged.connect(self._rotate_to)
+        self.rot_reset = QPushButton("Straighten")
+        self.rot_reset.clicked.connect(lambda: self._rotate_to(0.0))
+        rot.addWidget(QLabel("Rotate"))
+        rot.addWidget(self.rot_left)
+        rot.addWidget(self.rot_right)
+        rot.addWidget(self.angle)
+        rot.addWidget(self.rot_reset)
+        rot.addStretch(1)
+        right.addLayout(rot)
+
+        self.hint = QLabel("Drag to move, scroll to zoom, Shift+scroll to rotate.")
         self.hint.setStyleSheet("color: gray;")
         self.warn = QLabel()
         self.warn.setWordWrap(True)
@@ -133,6 +161,8 @@ class ArtEditor(QWidget):
     def _thumb(self, art: Art) -> QIcon:
         img = art.source.copy()
         img.thumbnail((112, 112))
+        if art.rotation:
+            img = imaging.rotate_image(img, art.rotation)
         return QIcon(QPixmap.fromImage(pil_to_qimage(img)))
 
     def _guide(self):
@@ -170,8 +200,9 @@ class ArtEditor(QWidget):
         else:
             packio.ensure_placement(self.kind, self.item, art, self.guides)
             self.view.set_message("")
-            self.view.set_source(art.source, art.placement)
-        for w in (self.zoom_in, self.zoom_out, self.fill_btn, self.fit_btn):
+            self.view.set_source(art.source, art.placement, art.rotation)
+        for w in (self.zoom_in, self.zoom_out, self.fill_btn, self.fit_btn,
+                  self.rot_left, self.rot_right, self.angle, self.rot_reset):
             w.setEnabled(art is not None and not blocked)
         self._update_status()
 
@@ -181,6 +212,9 @@ class ArtEditor(QWidget):
         if art is not None and art.placement is not None:
             s = art.placement.scale
             self.scale_label.setText(f"{s * 100:.0f}%")
+            self.angle.blockSignals(True)
+            self.angle.setValue(art.rotation)
+            self.angle.blockSignals(False)
             if imaging.is_upscaled(art.placement):
                 w, h = packio.frame_size(self.kind, self.item, self.guides)
                 warn = (f"This image is enlarged {s:.1f}× ({art.source.width}×{art.source.height} source "
@@ -277,7 +311,28 @@ class ArtEditor(QWidget):
             return
         art.placement = None
         packio.ensure_placement(self.kind, self.item, art, self.guides, mode)
-        self.view.set_source(art.source, art.placement)
+        self.view.set_source(art.source, art.placement, art.rotation)
+        self._placement_changed()
+
+    def _rotation(self) -> float:
+        art = self._current_art()
+        return art.rotation if art is not None else 0.0
+
+    def _rotate_to(self, deg: float) -> None:
+        """Set the current image's angle, turning it about the centre of where it sits now."""
+        art = self._current_art()
+        if art is None or art.placement is None:
+            return
+        new = imaging.normalise_angle(deg)
+        if abs(new - art.rotation) < 1e-9:
+            return
+        art.placement = imaging.with_rotation(art.placement, art.source.size, art.rotation, new)
+        art.rotation = new
+        self.view.set_rotation(new, art.placement)
+        if self.kind == gd.SHIELD:
+            li = self.list.currentItem()
+            if li is not None:
+                li.setIcon(self._thumb(art))
         self._placement_changed()
 
     def _placement_changed(self):
