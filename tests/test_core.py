@@ -213,6 +213,29 @@ def test_open_hand_made_shield(tmp_path: Path | None = None):
     assert any("IconN" in n for n in notes)
 
 
+
+def test_validate_does_not_change_pack(tmp_path: Path | None = None):
+    tmp = Path(tmp_path or tempfile.mkdtemp())
+    pack, guides = build_pack(tmp, gd.SHIELD)
+    assert all(a.placement is None for a in pack.items[0].art)
+    packio.validate(pack, guides)
+    assert all(a.placement is None for a in pack.items[0].art)
+
+
+def test_open_duplicate_style_numbers(tmp_path: Path | None = None):
+    """Pattern2.png and Pattern02.png are the same style: keep one, like ShieldShare."""
+    tmp = Path(tmp_path or tempfile.mkdtemp())
+    p = tmp / "dupes.zip"
+    png = imaging.png_bytes(Image.new("RGBA", (512, 512), (1, 2, 3, 255)))
+    with zipfile.ZipFile(p, "w") as z:
+        z.writestr("Hawk/shield.json", json.dumps({"displayName": "Hawk", "requirements": [{"item": "Wood", "amount": 1}]}))
+        z.writestr("Hawk/Pattern1.png", png)
+        z.writestr("Hawk/Pattern02.png", png)
+        z.writestr("Hawk/Pattern2.png", png)
+    pack, notes = packio.open_pack(str(p))
+    assert len(pack.items[0].art) == 2
+    assert any("two pattern files for style 2" in n for n in notes)
+
 def test_prefab_recipes():
     from packbuilder.model import apply_recipe, matches_recipe
     # every prefab has a recipe, and every recipe item is in the picker list

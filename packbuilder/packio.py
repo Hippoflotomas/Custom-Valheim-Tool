@@ -114,7 +114,8 @@ def validate(pack: Pack, guides: GuideStore | None) -> list[Issue]:
         for i, art in enumerate(it.art, 1):
             if kind == gd.SHIELD and guides is not None and guides.get(it.base_prefab) is None:
                 continue
-            p = ensure_placement(kind, it, art, guides)
+            # Don't store an auto-fit here: validation must not change the pack.
+            p = art.placement or imaging.auto_fit(art.source.size, fit_box(kind, it, guides))
             if imaging.is_upscaled(p):
                 what = f"Style {i}" if kind == gd.SHIELD else "The image"
                 warn(f"{what} ({art.label or 'image'}) is enlarged {p.scale:.1f}x and may look soft.")
@@ -299,6 +300,16 @@ def open_pack(path: str) -> tuple[Pack, list[str]]:
                 if m:
                     numbered.append((int(m.group(1)), n))
             numbered.sort()
+            # Like ShieldShare: one file per style number (e.g. Pattern2.png and Pattern02.png),
+            # the first one wins and the rest are ignored.
+            by_number: dict[int, str] = {}
+            for num, n in numbered:
+                if num in by_number:
+                    notes.append(f"{folder}: two pattern files for style {num} "
+                                 f"('{by_number[num]}' and '{n}') - using '{by_number[num]}'.")
+                else:
+                    by_number[num] = n
+            numbered = sorted(by_number.items())
             cap = _int(_ci(raw, "styleCount", 0), 0)
             limit = cap if 0 < cap < gd.MAX_SHIELD_STYLES else gd.MAX_SHIELD_STYLES
             if len(numbered) > limit:
