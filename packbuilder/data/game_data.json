@@ -1,0 +1,110 @@
+{
+  "_comment": "Prefabs and stations the form offers. Internal names are what gets written to the JSON. Edit freely when the game or the mods change.",
+  "_recipe_comment": "Each prefab's 'recipe' is the vanilla cost, used as the form's default when that prefab is picked. 'per_level' is Valheim's amountPerLevel: the quality-2 upgrade costs 1x it, quality 3 costs 2x. Source: valheim.weirdgloop.org (checked 2026-09-29). Banners have no upgrades.",
+
+  "stations": [
+    {"name": "Workbench",     "shield": "piece_workbench",      "banner": "piece_workbench"},
+    {"name": "Forge",         "shield": "forge",                "banner": "forge"},
+    {"name": "Stonecutter",   "shield": "piece_stonecutter",    "banner": "piece_stonecutter"},
+    {"name": "Artisan table", "shield": "piece_artisanstation", "banner": "piece_artisanstation"},
+    {"name": "Black forge",   "shield": "blackforge",           "banner": "blackforge"},
+    {"name": "Galdr table",   "shield": "piece_magetable",      "banner": "piece_magetable"},
+    {"name": "Cauldron",      "shield": "piece_cauldron",       "banner": "piece_cauldron"},
+    {"name": "None",          "shield": "none",                 "banner": ""}
+  ],
+
+  "shield_prefabs": [
+    {"id": "ShieldWood", "name": "Wood shield", "size": [512, 512],
+     "recipe": {"station": "piece_workbench", "min_station_level": 1, "requirements": [
+       {"item": "Wood", "amount": 10, "per_level": 5},
+       {"item": "Resin", "amount": 4, "per_level": 2},
+       {"item": "LeatherScraps", "amount": 4, "per_level": 2}]}},
+    {"id": "ShieldWoodTower", "name": "Wood tower shield", "size": [512, 1039],
+     "recipe": {"station": "piece_workbench", "min_station_level": 1, "requirements": [
+       {"item": "Wood", "amount": 10, "per_level": 5},
+       {"item": "LeatherScraps", "amount": 6, "per_level": 3}]}},
+    {"id": "ShieldBanded", "name": "Banded shield", "size": [512, 512],
+     "recipe": {"station": "forge", "min_station_level": 2, "requirements": [
+       {"item": "FineWood", "amount": 10, "per_level": 10},
+       {"item": "Iron", "amount": 8, "per_level": 4}]}},
+    {"id": "ShieldSilver", "name": "Silver shield", "size": [512, 554],
+     "recipe": {"station": "forge", "min_station_level": 3, "requirements": [
+       {"item": "FineWood", "amount": 10, "per_level": 10},
+       {"item": "Silver", "amount": 8, "per_level": 4}]}},
+    {"id": "ShieldBlackmetal", "name": "Black metal shield", "size": [512, 488],
+     "recipe": {"station": "forge", "min_station_level": 3, "requirements": [
+       {"item": "FineWood", "amount": 10, "per_level": 10},
+       {"item": "BlackMetal", "amount": 8, "per_level": 4},
+       {"item": "Chain", "amount": 5, "per_level": 2}]}},
+    {"id": "ShieldBlackmetalTower", "name": "Black metal tower shield", "size": [512, 973],
+     "recipe": {"station": "forge", "min_station_level": 3, "requirements": [
+       {"item": "FineWood", "amount": 15, "per_level": 10},
+       {"item": "BlackMetal", "amount": 10, "per_level": 4},
+       {"item": "Chain", "amount": 7, "per_level": 2}]}},
+    {"id": "ShieldIronTower", "name": "Iron tower shield", "size": [512, 988],
+     "recipe": {"station": "forge", "min_station_level": 2, "requirements": [
+       {"item": "FineWood", "amount": 15, "per_level": 10},
+       {"item": "Iron", "amount": 10, "per_level": 5}]}},
+    {"id": "ShieldFlametal", "name": "Flametal shield", "size": [512, 512],
+     "recipe": {"station": "blackforge", "min_station_level": 3, "requirements": [
+       {"item": "Blackwood", "amount": 10, "per_level": 10},
+       {"item": "FlametalNew", "amount": 8, "per_level": 4},
+       {"item": "AskHide", "amount": 2, "per_level": 2}]}},
+    {"id": "ShieldFlametalTower", "name": "Flametal tower shield", "size": [512, 969],
+     "recipe": {"station": "blackforge", "min_station_level": 3, "requirements": [
+       {"item": "Blackwood", "amount": 15, "per_level": 10},
+       {"item": "FlametalNew", "amount": 10, "per_level": 4},
+       {"item": "AskHide", "amount": 5, "per_level": 2}]}}
+  ],
+
+  "banner_prefabs": [
+    {"id": "piece_banner01", "name": "Black banner", "size": [400, 1000],
+     "recipe": {"station": "piece_workbench", "requirements": [
+       {"item": "FineWood", "amount": 2}, {"item": "LeatherScraps", "amount": 6}, {"item": "Coal", "amount": 4}]}},
+    {"id": "piece_banner02", "name": "Blue banner", "size": [400, 1000],
+     "recipe": {"station": "piece_workbench", "requirements": [
+       {"item": "FineWood", "amount": 2}, {"item": "LeatherScraps", "amount": 6}, {"item": "Blueberries", "amount": 4}]}},
+    {"id": "piece_banner03", "name": "White and red striped banner", "size": [400, 1000],
+     "recipe": {"station": "piece_workbench", "requirements": [
+       {"item": "FineWood", "amount": 2}, {"item": "LeatherScraps", "amount": 6}, {"item": "Raspberry", "amount": 4}]}},
+    {"id": "piece_banner04", "name": "Red banner", "size": [400, 1000],
+     "recipe": {"station": "piece_workbench", "requirements": [
+       {"item": "FineWood", "amount": 2}, {"item": "LeatherScraps", "amount": 6}, {"item": "Bloodbag", "amount": 1}]}},
+    {"id": "piece_banner05", "name": "Green banner", "size": [400, 1000],
+     "recipe": {"station": "piece_workbench", "requirements": [
+       {"item": "FineWood", "amount": 2}, {"item": "LeatherScraps", "amount": 6}, {"item": "Guck", "amount": 1}]}},
+    {"id": "piece_banner06", "name": "Blue, red and white banner", "size": [400, 1000],
+     "recipe": {"station": "piece_workbench", "requirements": [
+       {"item": "FineWood", "amount": 2}, {"item": "LeatherScraps", "amount": 6}, {"item": "Blueberries", "amount": 2},
+       {"item": "Raspberry", "amount": 2}, {"item": "Cloudberry", "amount": 1}]}},
+    {"id": "piece_banner07", "name": "White and blue striped banner", "size": [400, 1000],
+     "recipe": {"station": "piece_workbench", "requirements": [
+       {"item": "FineWood", "amount": 2}, {"item": "LeatherScraps", "amount": 6}, {"item": "Blueberries", "amount": 2},
+       {"item": "Cloudberry", "amount": 3}]}},
+    {"id": "piece_banner08", "name": "Yellow banner", "size": [400, 1000],
+     "recipe": {"station": "piece_workbench", "requirements": [
+       {"item": "FineWood", "amount": 2}, {"item": "LeatherScraps", "amount": 6}, {"item": "Coal", "amount": 2},
+       {"item": "Dandelion", "amount": 4}]}},
+    {"id": "piece_banner09", "name": "Purple banner", "size": [400, 1000],
+     "recipe": {"station": "piece_workbench", "requirements": [
+       {"item": "FineWood", "amount": 2}, {"item": "LeatherScraps", "amount": 6}, {"item": "Blueberries", "amount": 2},
+       {"item": "Raspberry", "amount": 3}]}},
+    {"id": "piece_banner10", "name": "Orange banner", "size": [400, 1000],
+     "recipe": {"station": "piece_workbench", "requirements": [
+       {"item": "FineWood", "amount": 2}, {"item": "LeatherScraps", "amount": 6}, {"item": "Carrot", "amount": 2},
+       {"item": "Cloudberry", "amount": 3}]}},
+    {"id": "piece_banner11", "name": "White banner", "size": [400, 1000],
+     "recipe": {"station": "piece_workbench", "requirements": [
+       {"item": "FineWood", "amount": 2}, {"item": "LeatherScraps", "amount": 6}, {"item": "Coal", "amount": 2},
+       {"item": "Cloudberry", "amount": 4}]}},
+    {"id": "piece_cloth_hanging_door", "name": "Red jute curtain", "size": [500, 1000],
+     "recipe": {"station": "piece_workbench", "requirements": [
+       {"item": "JuteRed", "amount": 4}, {"item": "FineWood", "amount": 1}]}},
+    {"id": "piece_cloth_hanging_door_blue", "name": "Blue jute drapes", "size": [200, 1000],
+     "recipe": {"station": "piece_workbench", "requirements": [
+       {"item": "JuteBlue", "amount": 4}, {"item": "FineWood", "amount": 1}]}},
+    {"id": "piece_cloth_hanging_door_blue2", "name": "Blue jute curtain", "size": [1500, 500],
+     "recipe": {"station": "piece_workbench", "requirements": [
+       {"item": "JuteBlue", "amount": 4}, {"item": "FineWood", "amount": 1}]}}
+  ]
+}

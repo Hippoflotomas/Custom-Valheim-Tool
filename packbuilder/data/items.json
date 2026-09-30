@@ -1,0 +1,217 @@
+{
+  "_comment": "Friendly name -> internal item name for the requirement picker. The picker also accepts free text, so items from other mods or anything missing here still work. Add entries as the game changes.",
+  "items": [
+    {
+      "name": "Wood",
+      "id": "Wood"
+    },
+    {
+      "name": "Fine wood",
+      "id": "FineWood"
+    },
+    {
+      "name": "Core wood",
+      "id": "RoundLog"
+    },
+    {
+      "name": "Ancient bark",
+      "id": "ElderBark"
+    },
+    {
+      "name": "Yggdrasil wood",
+      "id": "YggdrasilWood"
+    },
+    {
+      "name": "Ashwood",
+      "id": "Blackwood"
+    },
+    {
+      "name": "Stone",
+      "id": "Stone"
+    },
+    {
+      "name": "Flint",
+      "id": "Flint"
+    },
+    {
+      "name": "Resin",
+      "id": "Resin"
+    },
+    {
+      "name": "Leather scraps",
+      "id": "LeatherScraps"
+    },
+    {
+      "name": "Deer hide",
+      "id": "DeerHide"
+    },
+    {
+      "name": "Troll hide",
+      "id": "TrollHide"
+    },
+    {
+      "name": "Wolf pelt",
+      "id": "WolfPelt"
+    },
+    {
+      "name": "Lox pelt",
+      "id": "LoxPelt"
+    },
+    {
+      "name": "Asksvin hide",
+      "id": "AskHide"
+    },
+    {
+      "name": "Feathers",
+      "id": "Feathers"
+    },
+    {
+      "name": "Bone fragments",
+      "id": "BoneFragments"
+    },
+    {
+      "name": "Coal",
+      "id": "Coal"
+    },
+    {
+      "name": "Copper",
+      "id": "Copper"
+    },
+    {
+      "name": "Tin",
+      "id": "Tin"
+    },
+    {
+      "name": "Bronze",
+      "id": "Bronze"
+    },
+    {
+      "name": "Bronze nails",
+      "id": "BronzeNails"
+    },
+    {
+      "name": "Iron",
+      "id": "Iron"
+    },
+    {
+      "name": "Iron nails",
+      "id": "IronNails"
+    },
+    {
+      "name": "Chain",
+      "id": "Chain"
+    },
+    {
+      "name": "Silver",
+      "id": "Silver"
+    },
+    {
+      "name": "Obsidian",
+      "id": "Obsidian"
+    },
+    {
+      "name": "Crystal",
+      "id": "Crystal"
+    },
+    {
+      "name": "Black metal",
+      "id": "BlackMetal"
+    },
+    {
+      "name": "Flametal",
+      "id": "FlametalNew"
+    },
+    {
+      "name": "Ancient metal (old pre-Ashlands flametal)",
+      "id": "Flametal"
+    },
+    {
+      "name": "Surtling core",
+      "id": "SurtlingCore"
+    },
+    {
+      "name": "Guck",
+      "id": "Guck"
+    },
+    {
+      "name": "Bloodbag",
+      "id": "Bloodbag"
+    },
+    {
+      "name": "Ooze",
+      "id": "Ooze"
+    },
+    {
+      "name": "Withered bone",
+      "id": "WitheredBone"
+    },
+    {
+      "name": "Linen thread",
+      "id": "LinenThread"
+    },
+    {
+      "name": "Needle",
+      "id": "Needle"
+    },
+    {
+      "name": "Tar",
+      "id": "Tar"
+    },
+    {
+      "name": "Red jute",
+      "id": "JuteRed"
+    },
+    {
+      "name": "Blue jute",
+      "id": "JuteBlue"
+    },
+    {
+      "name": "Chitin",
+      "id": "Chitin"
+    },
+    {
+      "name": "Carapace",
+      "id": "Carapace"
+    },
+    {
+      "name": "Black marble",
+      "id": "BlackMarble"
+    },
+    {
+      "name": "Sap",
+      "id": "Sap"
+    },
+    {
+      "name": "Eitr",
+      "id": "Eitr"
+    },
+    {
+      "name": "Black core",
+      "id": "BlackCore"
+    },
+    {
+      "name": "Dragon tear",
+      "id": "DragonTear"
+    },
+    {
+      "name": "Raspberries",
+      "id": "Raspberry"
+    },
+    {
+      "name": "Blueberries",
+      "id": "Blueberries"
+    },
+    {
+      "name": "Cloudberries",
+      "id": "Cloudberry"
+    },
+    {
+      "name": "Dandelion",
+      "id": "Dandelion"
+    },
+    {
+      "name": "Carrot",
+      "id": "Carrot"
+    }
+  ]
+}

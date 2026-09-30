@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# PyInstaller output (build_exe.bat regenerates the .spec each run)
+build/
+dist/
+*.spec
+
+# Exported / packaged zips
+*.zip
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
