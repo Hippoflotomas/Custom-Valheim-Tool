@@ -18,7 +18,8 @@ from ..model import Pack
 from .item_editor import ItemEditor
 
 APP_NAME = "Valheim Pack Builder"
-KIND_LABEL = {gd.SHIELD: "Shield pack", gd.BANNER: "Banner pack"}
+KIND_LABEL = {gd.SHIELD: "Shield pack", gd.BANNER: "Banner pack", gd.TABARD: "Tabard pack"}
+DEFAULT_ZIP = {gd.SHIELD: "MyShields.zip", gd.BANNER: "MyBanners.zip", gd.TABARD: "MyTabards.zip"}
 
 
 class MainWindow(QMainWindow):
@@ -46,8 +47,8 @@ class MainWindow(QMainWindow):
         page = QWidget()
         lay = QVBoxLayout(page)
         lay.addStretch(1)
-        title = QLabel(f"<h1>{APP_NAME}</h1><p>Build BannerShare and ShieldShare packs. "
-                       "A pack holds only shields or only banners.</p>"
+        title = QLabel(f"<h1>{APP_NAME}</h1><p>Build BannerShare, ShieldShare and TabardShare packs. "
+                       "A pack holds only one type: shields, banners or tabards.</p>"
                        f"<p style='color: gray;'>Version {__version__}</p>")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(title)
@@ -55,6 +56,7 @@ class MainWindow(QMainWindow):
         row.addStretch(1)
         for text, fn in (("New shield pack", lambda: self.new_pack(gd.SHIELD)),
                          ("New banner pack", lambda: self.new_pack(gd.BANNER)),
+                         ("New tabard pack", lambda: self.new_pack(gd.TABARD)),
                          ("Open pack…", self.open_pack)):
             b = QPushButton(text)
             b.setMinimumSize(180, 56)
@@ -109,12 +111,13 @@ class MainWindow(QMainWindow):
 
         act("New shield pack", lambda: self.new_pack(gd.SHIELD))
         act("New banner pack", lambda: self.new_pack(gd.BANNER))
+        act("New tabard pack", lambda: self.new_pack(gd.TABARD))
         act("Open pack…", self.open_pack, QKeySequence.StandardKey.Open)
         m.addSeparator()
         self.export_act = act("Export zip", lambda: self.export_pack(False), QKeySequence.StandardKey.Save)
         self.export_as_act = act("Export zip as…", lambda: self.export_pack(True), QKeySequence.StandardKey.SaveAs)
         m.addSeparator()
-        act("Pattern guide folder…", self.choose_templates_dir)
+        act("Shield pattern guide folder…", self.choose_templates_dir)
         m.addSeparator()
         act("Quit", self.close, QKeySequence.StandardKey.Quit)
         m = self.menuBar().addMenu("&Help")
@@ -124,7 +127,7 @@ class MainWindow(QMainWindow):
     def show_about(self) -> None:
         QMessageBox.about(self, f"About {APP_NAME}", (
             f"<h3>{APP_NAME} {__version__}</h3>"
-            "<p>Builds pack zips for the BannerShare and ShieldShare Valheim mods.<br>"
+            "<p>Builds pack zips for the BannerShare, ShieldShare and TabardShare Valheim mods.<br>"
             "Made by Hippoflotomas. Free to use.</p>"
             "<p>Built with Python, Qt and PySide6 (used under the GNU LGPL v3), Pillow and NumPy. "
             "Their licence texts are in the <i>licenses</i> folder next to the program, and "
@@ -181,6 +184,7 @@ class MainWindow(QMainWindow):
         self._enable_pack_actions(True)
         self._rebuild_list(0)
         self._update_title()
+        self._update_guide_label()
 
     # ------------------------------------------------------------ items
     def _item_label(self, n: int) -> str:
@@ -227,9 +231,7 @@ class MainWindow(QMainWindow):
         src = self.pack.items[row]
         dup = copy.copy(src)
         dup.requirements = [copy.copy(r) for r in src.requirements]
-        dup.art = [copy.copy(a) for a in src.art]
-        for a in dup.art:
-            a.placement = copy.copy(a.placement)
+        dup.art = [a.clone() for a in src.art]
         dup.advanced = dict(src.advanced)
         dup.id = f"{src.id}_copy" if src.id else ""
         dup.display_name = f"{src.display_name} (copy)" if src.display_name else ""
@@ -270,8 +272,7 @@ class MainWindow(QMainWindow):
         if ask_path or not path:
             start_dir = self.settings.value("last_zip_dir") or str(
                 imaging.documents_dir() / gd.DROP_FOLDER_NAME[self.pack.kind])
-            default = Path(start_dir) / (Path(path).name if path else
-                                         ("MyShields.zip" if self.pack.kind == gd.SHIELD else "MyBanners.zip"))
+            default = Path(start_dir) / (Path(path).name if path else DEFAULT_ZIP[self.pack.kind])
             path, _ = QFileDialog.getSaveFileName(self, "Export pack", str(default), "Pack zip (*.zip)")
             if not path:
                 return
@@ -316,9 +317,19 @@ class MainWindow(QMainWindow):
             self.editor.refresh_art()
 
     def _update_guide_label(self) -> None:
+        if self.pack is not None and self.pack.kind == gd.TABARD:
+            layouts = self.guides.tabard
+            guide = layouts.get(gd.TABARD_SIZES[0])
+            where = "your installed TabardShare" if guide.origin == "installed" else "bundled with this app"
+            self.guide_label.setText(f"UV layout: {where}")
+            self.guide_label.setToolTip(layouts.note or str(layouts.installed_path))
+            if layouts.note:
+                self.statusBar().showMessage(layouts.note, 15000)
+            return
         d = self.guides.templates_dir
         state = "" if d.exists() else " (not found)"
         self.guide_label.setText(f"Pattern guides: {d}{state}")
+        self.guide_label.setToolTip("")
 
     # ------------------------------------------------------------ misc
     def _mark_dirty(self) -> None:

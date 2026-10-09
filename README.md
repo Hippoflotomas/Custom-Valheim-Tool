@@ -1,7 +1,7 @@
-# Valheim Pack Builder (v1)
+# Valheim Pack Builder
 
-Builds BannerShare and ShieldShare pack zips: a form for the JSON, and a cropper that fits
-your PNG to the shield face or banner shape.
+Builds BannerShare, ShieldShare and TabardShare pack zips: a form for the JSON, and a cropper that
+fits your PNG to the shield face, banner shape or tabard panels.
 
 ## Download (no Python needed)
 
@@ -34,14 +34,15 @@ The bundled `game_data.json` / `items.json` are baked in, so after editing them,
 
 ## Use
 
-1. **New shield pack** or **New banner pack**. The type is fixed for that pack.
+1. **New shield pack**, **New banner pack** or **New tabard pack**. The type is fixed for that pack.
 2. Fill in the form. The ID auto-fills from the display name until you edit it by hand.
    Picking a base prefab fills in its vanilla cost (station, min level, requirements). If you've
    already edited the cost, you're asked before it's replaced. **Reset to base prefab's recipe** restores it.
 3. Add images. Drag in the preview to move, scroll (or − / +) to zoom, **Fill face** / **Fit inside** to re-fit.
    Rotate with **↺ 90°** / **↻ 90°**, the angle box, or Shift+scroll (1° per notch); **Straighten** resets it.
    On shields, the brown shows plain wood: transparent parts of your art stay transparent.
-4. **Export zip** and drop it into `Documents\Valheim Custom Shields` or `Documents\Valheim Custom Banners`.
+4. **Export zip** and drop it into `Documents\Valheim Custom Shields`, `Documents\Valheim Custom Banners`
+   or `Documents\Valheim Custom Tabards`.
 
 **Open pack…** reads an exported (or hand-made) zip back in for editing. The zip is the save file.
 
@@ -50,7 +51,25 @@ The bundled `game_data.json` / `items.json` are baked in, so after editing them,
 Shield cropping reads the mod's own guides from
 `Documents\Valheim Custom Shields\_Templates\<Prefab> - pattern guide.png`.
 ShieldShare writes `ShieldWood` on every launch; other bases only appear once a pack using
-that base has been loaded. If yours are elsewhere, use **File ▸ Pattern guide folder…**.
+that base has been loaded. If yours are elsewhere, use **File ▸ Shield pattern guide folder…**.
+
+### Tabards
+
+- A tabard pattern is one square image (1024, or 2048 for detail): **front panel on the left half,
+  back on the right, neck at the top**. Each style has a **Front** and a **Back**; the back is
+  *Same as front* (default), its *Own image*, or a *Plain colour*. Each image is fitted to its own
+  panel and can't spill onto the other one.
+- **Transparency is a hole.** TabardShare cuts out anything under 50% opacity. By default the art is
+  laid over a **background colour** (linen, `#E8DCC4`); tick **Keep transparency (cut holes)** for ragged
+  hems on purpose. The preview shows holes as a checkerboard.
+- **Import ready-made…** takes a pattern you painted over the UV layout yourself and uses it as is.
+  Opening a tabard pack brings its patterns back the same way: as ready-made sheets, not the separate
+  front and back images they were made from, so keep your source art.
+- **Icons:** TabardShare makes each style's icon from the front panel. **Custom icon…** replaces it
+  (written as `IconN.png`).
+- The ID `Test` is taken by TabardShare's built-in test tabard.
+- The panel outlines come from TabardShare's UV layout: the copy the mod writes to
+  `Documents\Valheim Custom Tabards\_Templates\Tabard - UV layout.png`, or the one bundled with the app.
 
 ## Files
 
@@ -58,7 +77,8 @@ that base has been loaded. If yours are elsewhere, use **File ▸ Pattern guide 
 |---|---|
 | `packbuilder/data/game_data.json` | Prefabs, output sizes, vanilla recipes, crafting stations. Edit when the game changes. |
 | `packbuilder/data/items.json` | Requirement picker list (friendly name → internal name). |
-| `packbuilder/imaging.py` | Face mask, auto-fit, crop, edge bleed, banner icon. |
+| `packbuilder/data/Tabard - UV layout.png` | Copy of TabardShare's `Assets/TabardUVLayout.png`. Keep it in sync with the mod. |
+| `packbuilder/imaging.py` | Face mask, tabard panels, auto-fit, crop, edge bleed, icons. |
 | `packbuilder/packio.py` | Validation, zip export, zip open. |
 | `packbuilder/ui/` | PySide6 GUI. |
 | `tests/test_core.py` | `python -m pytest tests/test_core.py` |
@@ -75,3 +95,8 @@ If the app hits an unexpected error it shows a message and appends the details t
   "None" station is written as `"none"`; `amountPerLevel` only when above 0; no `styleCount`.
 - Banners: `<ID>/Banner.json`, `MainTex.png`, generated 128×128 `Icon.png`, optional advanced layers.
   "None" station is written as `""`; amounts are always explicit.
+- Tabards: `<ID>/Tabard.json`, `Pattern1.png`… (square, 1024 or 2048), `IconN.png` only for custom icons,
+  optional `BumpMap.png` / `MetallicGlossMap.png`. "None" station is written as `"none"` (an empty value
+  would mean the workbench in TabardShare). No `basePrefab`, `styleCount` or `amountPerLevel`
+  (tabards have no upgrades). Each panel is edge-bled by 4 px at 1024 so the colours never meet in the
+  10 px gutter between them.

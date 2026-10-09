@@ -27,18 +27,22 @@ def _guide(w: int, h: int) -> Image.Image:
 def run() -> None:
     """Raise on any failure."""
     from . import gamedata as gd, packio
-    from .guides import GuideStore
-    from .model import Art, Pack, Requirement
+    from .guides import GuideStore, bundled_tabard_layout
+    from .model import Art, Pack, Requirement, TabardStyle
 
-    assert gd.prefabs(gd.SHIELD) and gd.prefabs(gd.BANNER) and gd.items() and gd.stations(gd.SHIELD), \
+    assert all(gd.prefabs(k) and gd.stations(k) for k in gd.KINDS) and gd.items(), \
         "bundled game data didn't load"
+    # the tabard UV layout ships with the app (proves the PyInstaller datas include it)
+    layout = bundled_tabard_layout()
+    assert layout.size == (1024, 1024) and set(layout.islands) == {"front", "back"}, "bundled UV layout is wrong"
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         templates = tmp / "_Templates"
         templates.mkdir()
         _guide(512, 512).save(templates / "ShieldWood - pattern guide.png")
-        guides = GuideStore(templates)
+        # an empty tabard templates folder: tabards must work from the bundled layout alone
+        guides = GuideStore(templates, tabard_templates_dir=tmp / "no_tabard_templates")
 
         art = Image.new("RGBA", (700, 500), (200, 30, 30, 255))
         for kind in gd.KINDS:
@@ -46,7 +50,10 @@ def run() -> None:
             it = pack.new_item()
             it.display_name, it.id = "Self test", "SelfTest_Item"
             it.requirements = [Requirement("Wood", 1)]
-            it.art = [Art(art, "test.png", rotation=30.0)]
+            if kind == gd.TABARD:
+                it.art = [TabardStyle(art, "test.png", rotation=30.0)]
+            else:
+                it.art = [Art(art, "test.png", rotation=30.0)]
             out = tmp / f"{kind}.zip"
             issues = packio.export_pack(pack, str(out), guides)
             errors = [str(i) for i in issues if i.error]

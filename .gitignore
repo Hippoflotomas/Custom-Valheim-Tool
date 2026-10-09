@@ -10,8 +10,9 @@ build/
 dist/
 release/
 
-# Exported / packaged zips
+# Exported / packaged zips (test fixtures are kept)
 *.zip
+!tests/fixtures/*.zip
 
 # Editors / OS
 .vscode/

@@ -36,6 +36,8 @@ class CropView(QWidget):
         self.setCursor(Qt.CursorShape.OpenHandCursor)
         self.frame = (512, 512)
         self.overlay: QImage | None = None
+        self.underlay: QImage | None = None   # drawn under the art: the rest of the image (tabards)
+        self.clip_box: tuple[int, int, int, int] | None = None   # art is only drawn inside this (output px)
         self.transparent_is_wood = True
         self.message = ""
         self._src: QImage | None = None
@@ -50,6 +52,15 @@ class CropView(QWidget):
         self.frame = size
         self.overlay = pil_to_qimage(overlay) if overlay is not None else None
         self.transparent_is_wood = transparent_is_wood
+        self.update()
+
+    def set_underlay(self, img: Image.Image | None) -> None:
+        """An image stretched over the whole frame under the art (any resolution)."""
+        self.underlay = pil_to_qimage(img) if img is not None else None
+        self.update()
+
+    def set_clip(self, box: tuple[int, int, int, int] | None) -> None:
+        self.clip_box = box
         self.update()
 
     def set_source(self, img: Image.Image | None, placement: Placement | None, rotation: float = 0.0) -> None:
@@ -116,12 +127,18 @@ class CropView(QWidget):
 
         qp.save()
         qp.setClipRect(frame_rect)
+        if self.underlay is not None:
+            qp.drawImage(frame_rect, self.underlay)
         if self._src is not None and self._placement is not None:
             p = self._placement
             k = s * p.scale / self._src_factor
             # Draw around the centre of the rotated bounding box, as imaging.render_placed does.
             rw, rh = imaging.rotated_size(*self._src_size, self._rotation)
             qp.save()
+            if self.clip_box is not None:
+                l, t, r, b = self.clip_box
+                qp.setClipRect(QRectF(o.x() + l * s, o.y() + t * s, (r - l) * s, (b - t) * s),
+                               Qt.ClipOperation.IntersectClip)
             qp.translate(o.x() + (p.ox + rw * p.scale / 2) * s, o.y() + (p.oy + rh * p.scale / 2) * s)
             qp.rotate(self._rotation)            # clockwise on screen, like the export
             w, h = self._src.width() * k, self._src.height() * k

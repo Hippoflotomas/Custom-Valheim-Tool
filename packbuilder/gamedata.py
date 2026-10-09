@@ -13,7 +13,8 @@ from pathlib import Path
 
 SHIELD = "shield"
 BANNER = "banner"
-KINDS = (SHIELD, BANNER)
+TABARD = "tabard"
+KINDS = (SHIELD, BANNER, TABARD)
 
 def _data_dir() -> Path:
     """Bundled data files. In a PyInstaller build they're unpacked under sys._MEIPASS."""
@@ -25,20 +26,57 @@ def _data_dir() -> Path:
 
 DATA_DIR = _data_dir()
 
-JSON_FILE_NAME = {SHIELD: "shield.json", BANNER: "Banner.json"}
-DROP_FOLDER_NAME = {SHIELD: "Valheim Custom Shields", BANNER: "Valheim Custom Banners"}
+JSON_FILE_NAME = {SHIELD: "shield.json", BANNER: "Banner.json", TABARD: "Tabard.json"}
+DROP_FOLDER_NAME = {SHIELD: "Valheim Custom Shields", BANNER: "Valheim Custom Banners",
+                    TABARD: "Valheim Custom Tabards"}
+MOD_NAME = {SHIELD: "ShieldShare", BANNER: "BannerShare", TABARD: "TabardShare"}
 
-MAX_SHIELD_STYLES = 16  # ShieldShare's style atlas is a fixed 4x4 grid
+MAX_STYLES = 16  # ShieldShare's style atlas is a fixed 4x4 grid; TabardShare also caps at 16
+MAX_SHIELD_STYLES = MAX_STYLES  # old name
+
+TABARD_SIZES = (1024, 2048)  # pattern texture sizes offered for tabards (square)
+
+
+# ---------------------------------------------------------------- what each pack type has
+
+def has_styles(kind: str) -> bool:
+    """1-16 PatternN.png styles (shields, tabards) rather than one main image (banners)."""
+    return kind in (SHIELD, TABARD)
+
+
+def has_min_level(kind: str) -> bool:
+    return kind in (SHIELD, TABARD)
+
+
+def has_per_level(kind: str) -> bool:
+    """amountPerLevel is only used by shields: TabardShare items have m_maxQuality = 1."""
+    return kind == SHIELD
+
+
+def has_base_prefab(kind: str) -> bool:
+    """Tabards have one model, so no basePrefab is written."""
+    return kind in (SHIELD, BANNER)
+
+
+def max_styles(kind: str) -> int:
+    return MAX_STYLES if has_styles(kind) else 1
+
+
+def default_requirement_amount(kind: str) -> int:
+    """Amount a requirement gets when the JSON leaves it out (BannerShare: 0, the others: 1)."""
+    return 0 if kind == BANNER else 1
 
 # Optional texture layers copied into the item folder unchanged (section 7).
 # StyleTex.png is not in spec v1 but ShieldShare reads it (a 4x4 style sheet).
 ADVANCED_LAYERS = {
     SHIELD: ["MainTex.png", "BumpMap.png", "MetallicGlossMap.png", "EmissionMap.png", "StyleTex.png"],
     BANNER: ["BumpMap.png", "EmissiveTex.png", "MetalTex.png", "MossTex.png"],
+    TABARD: ["BumpMap.png", "MetallicGlossMap.png"],
 }
 
-# ShieldShare also accepts these short station names (ShieldPack.StationAliases).
-# Only used when reading packs made by hand; the app always writes internal names.
+# ShieldShare and TabardShare also accept these short station names (ShieldPack.StationAliases,
+# TabardPack.StationAliases). Only used when reading packs made by hand; the app always writes
+# internal names. Both mods treat "none" as "no station" and an EMPTY value as the workbench.
 SHIELD_STATION_ALIASES = {
     "workbench": "piece_workbench",
     "forge": "forge",
@@ -107,7 +145,7 @@ def prefabs(kind: str) -> tuple[Prefab, ...]:
             recipe = Recipe(
                 r.get("station", default_station(kind)),
                 int(r.get("min_station_level", 1)),
-                tuple(RecipePart(q["item"], int(q["amount"]), int(q.get("per_level", 0)) if kind == SHIELD else 0)
+                tuple(RecipePart(q["item"], int(q["amount"]), int(q.get("per_level", 0)) if has_per_level(kind) else 0)
                       for q in r.get("requirements", [])),
             )
         out.append(Prefab(p["id"], p["name"], (int(p["size"][0]), int(p["size"][1])), recipe))
@@ -141,9 +179,9 @@ def default_station(kind: str) -> str:
 def normalise_station(kind: str, raw: str | None) -> str:
     """Turn a craftingStation value read from a pack into what this app writes."""
     raw = (raw or "").strip()
-    if kind == SHIELD:
+    if kind in (SHIELD, TABARD):
         if not raw:
-            return "piece_workbench"  # ShieldShare's default for an empty value
+            return "piece_workbench"  # ShieldShare's and TabardShare's default for an empty value
         key = raw.replace(" ", "").replace("_", "").lower()
         if key in SHIELD_STATION_ALIASES:
             return SHIELD_STATION_ALIASES[key]

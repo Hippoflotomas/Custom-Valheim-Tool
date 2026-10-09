@@ -1,3 +1,3 @@
-"""Valheim Pack Builder: builds BannerShare and ShieldShare pack zips."""
+"""Valheim Pack Builder: builds BannerShare, ShieldShare and TabardShare pack zips."""
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"

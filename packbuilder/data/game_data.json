@@ -1,16 +1,16 @@
 {
   "_comment": "Prefabs and stations the form offers. Internal names are what gets written to the JSON. Edit freely when the game or the mods change.",
-  "_recipe_comment": "Each prefab's 'recipe' is the vanilla cost, used as the form's default when that prefab is picked. 'per_level' is Valheim's amountPerLevel: the quality-2 upgrade costs 1x it, quality 3 costs 2x. Source: valheim.weirdgloop.org (checked 2026-09-29). Banners have no upgrades.",
+  "_recipe_comment": "Each prefab's 'recipe' is the vanilla cost, used as the form's default when that prefab is picked. 'per_level' is Valheim's amountPerLevel: the quality-2 upgrade costs 1x it, quality 3 costs 2x. Source: valheim.weirdgloop.org (checked 2026-09-29). Banners and tabards have no upgrades. The tabard recipe is TabardShare's own default (TabardPack.ApplyDefaults).",
 
   "stations": [
-    {"name": "Workbench",     "shield": "piece_workbench",      "banner": "piece_workbench"},
-    {"name": "Forge",         "shield": "forge",                "banner": "forge"},
-    {"name": "Stonecutter",   "shield": "piece_stonecutter",    "banner": "piece_stonecutter"},
-    {"name": "Artisan table", "shield": "piece_artisanstation", "banner": "piece_artisanstation"},
-    {"name": "Black forge",   "shield": "blackforge",           "banner": "blackforge"},
-    {"name": "Galdr table",   "shield": "piece_magetable",      "banner": "piece_magetable"},
-    {"name": "Cauldron",      "shield": "piece_cauldron",       "banner": "piece_cauldron"},
-    {"name": "None",          "shield": "none",                 "banner": ""}
+    {"name": "Workbench",     "shield": "piece_workbench",      "banner": "piece_workbench", "tabard": "piece_workbench"},
+    {"name": "Forge",         "shield": "forge",                "banner": "forge", "tabard": "forge"},
+    {"name": "Stonecutter",   "shield": "piece_stonecutter",    "banner": "piece_stonecutter", "tabard": "piece_stonecutter"},
+    {"name": "Artisan table", "shield": "piece_artisanstation", "banner": "piece_artisanstation", "tabard": "piece_artisanstation"},
+    {"name": "Black forge",   "shield": "blackforge",           "banner": "blackforge", "tabard": "blackforge"},
+    {"name": "Galdr table",   "shield": "piece_magetable",      "banner": "piece_magetable", "tabard": "piece_magetable"},
+    {"name": "Cauldron",      "shield": "piece_cauldron",       "banner": "piece_cauldron", "tabard": "piece_cauldron"},
+    {"name": "None",          "shield": "none",                 "banner": "", "tabard": "none"}
   ],
 
   "shield_prefabs": [
@@ -106,5 +106,11 @@
     {"id": "piece_cloth_hanging_door_blue2", "name": "Blue jute curtain", "size": [1500, 500],
      "recipe": {"station": "piece_workbench", "requirements": [
        {"item": "JuteBlue", "amount": 4}, {"item": "FineWood", "amount": 1}]}}
+  ],
+
+  "tabard_prefabs": [
+    {"id": "Tabard", "name": "Tabard", "size": [1024, 1024],
+     "recipe": {"station": "piece_workbench", "min_station_level": 1, "requirements": [
+       {"item": "LeatherScraps", "amount": 4}]}}
   ]
 }

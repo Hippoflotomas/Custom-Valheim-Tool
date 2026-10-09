@@ -1,5 +1,5 @@
-"""Image pipeline: face masks from ShieldShare's pattern guides, fitting, cropping,
-edge bleed and icon generation."""
+"""Image pipeline: face masks from ShieldShare's pattern guides, TabardShare's UV layout,
+fitting, cropping, edge bleed and icon generation."""
 from __future__ import annotations
 
 import io
@@ -13,7 +13,7 @@ import numpy as np
 from PIL import Image, ImageFilter
 
 from . import gamedata as gd
-from .model import Placement
+from .model import BACK_COLOUR, BACK_OWN, BACK_SAME, Art, Placement, TabardStyle
 
 # Pattern guide colours (ShieldShare.WritePatternGuide): face 205 grey, metal stripes 70/95,
 # outline 40, crosshair 160. Anything opaque and at least this light counts as face.
@@ -41,8 +41,9 @@ def documents_dir() -> Path:
     return Path.home() / "Documents"
 
 
-def default_templates_dir() -> Path:
-    return documents_dir() / gd.DROP_FOLDER_NAME[gd.SHIELD] / "_Templates"
+def default_templates_dir(kind: str = gd.SHIELD) -> Path:
+    """Where the mod writes its _Templates folder (pattern guides, UV layouts)."""
+    return documents_dir() / gd.DROP_FOLDER_NAME[kind] / "_Templates"
 
 
 def guide_path(templates_dir: Path, prefab_id: str) -> Path:
@@ -238,28 +239,37 @@ def render_placed(src: Image.Image, p: Placement, size: tuple[int, int], rotatio
 
 def edge_bleed(img: Image.Image, mask: Image.Image, px: int = EDGE_BLEED_PX) -> Image.Image:
     """Copy the colours (and alpha) at the face edge outward by ``px`` pixels, so texture
-    filtering at the rim samples the design rather than whatever lies outside the face."""
+    filtering at the rim samples the design rather than whatever lies outside the face.
+
+    Each pass gives every pixel just outside the region the average of its in-region
+    8-neighbours, then adds it to the region. Only the pixels on the edge are touched,
+    so the cost follows the outline's length, not the image's area.
+    """
     a = np.asarray(img.convert("RGBA")).astype(np.float32)
     region = np.asarray(mask) > 0
     H, W = region.shape
+    a_pad = np.zeros((H + 2, W + 2, 4), np.float32)
+    a_pad[1:-1, 1:-1] = a
+    r_pad = np.zeros((H + 2, W + 2), bool)
+    r_pad[1:-1, 1:-1] = region
+    offsets = [(dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx]
     for _ in range(px):
-        pad_a = np.pad(a, ((1, 1), (1, 1), (0, 0)))
-        pad_r = np.pad(region, 1)
-        acc = np.zeros_like(a)
-        cnt = np.zeros((H, W), np.float32)
-        for dy in (-1, 0, 1):
-            for dx in (-1, 0, 1):
-                if dx == 0 and dy == 0:
-                    continue
-                r = pad_r[1 + dy:1 + dy + H, 1 + dx:1 + dx + W]
-                acc += pad_a[1 + dy:1 + dy + H, 1 + dx:1 + dx + W] * r[..., None]
-                cnt += r
-        grow = (~region) & (cnt > 0)
-        if not grow.any():
+        # candidates: outside the region with at least one neighbour inside it
+        near = np.zeros_like(r_pad)
+        for dy, dx in offsets:
+            near[1:-1, 1:-1] |= r_pad[1 + dy:H + 1 + dy, 1 + dx:W + 1 + dx]
+        ys, xs = np.nonzero(near & ~r_pad)
+        if ys.size == 0:
             break
-        a[grow] = acc[grow] / cnt[grow][:, None]
-        region = region | grow
-    return Image.fromarray(np.clip(a + 0.5, 0, 255).astype(np.uint8), "RGBA")
+        acc = np.zeros((ys.size, 4), np.float32)
+        cnt = np.zeros(ys.size, np.float32)
+        for dy, dx in offsets:
+            r = r_pad[ys + dy, xs + dx]
+            acc += a_pad[ys + dy, xs + dx] * r[:, None]
+            cnt += r
+        a_pad[ys, xs] = acc / cnt[:, None]
+        r_pad[ys, xs] = True
+    return Image.fromarray(np.clip(a_pad[1:-1, 1:-1] + 0.5, 0, 255).astype(np.uint8), "RGBA")
 
 
 def render_shield_pattern(src: Image.Image, p: Placement, guide: FaceGuide, rotation: float = 0.0) -> Image.Image:
@@ -298,3 +308,212 @@ def conform_to_frame(img: Image.Image, frame: tuple[int, int], tolerance: float 
 
 def is_upscaled(p: Placement) -> bool:
     return p.scale > 1.001
+
+
+# ---------------------------------------------------------------- tabards
+
+TABARD_LAYOUT_NAME = "Tabard - UV layout.png"   # TabardShare writes it to its _Templates folder
+TABARD_REFERENCE_SIZE = 1024
+TABARD_BLEED_PX = 4         # at 1024; the gutter between the panels is only 10 px
+TABARD_ICON_SIZE = 128
+HOLE_ALPHA = 128            # TabardShare's cut-out shader: alpha under 50% is a hole
+# The guide says front = left half, back = right half, neither mirrored. If an in-game check
+# shows the back panel's UVs ARE mirrored, set this and the back art is flipped on render.
+BACK_MIRRORED = False
+PANELS = ("front", "back")
+
+
+@dataclass
+class TabardGuide:
+    """TabardShare's UV layout at one texture size: the panel mask and the two panel boxes."""
+    image: Image.Image                      # the layout, RGBA, at ``size``
+    mask: Image.Image                       # "L", 255 = inside a panel (layout alpha > 0)
+    islands: dict[str, tuple[int, int, int, int]]   # "front"/"back" -> (l, t, r, b), r/b exclusive
+    origin: str = "bundled"                 # "bundled" or "installed" (the mod's own copy)
+
+    @property
+    def size(self) -> tuple[int, int]:
+        return self.image.size
+
+    @classmethod
+    def from_image(cls, img: Image.Image, origin: str = "bundled") -> "TabardGuide":
+        img = img.convert("RGBA")
+        if img.width != img.height:
+            raise ValueError(f"the UV layout is {img.width}x{img.height}, not square")
+        mask = Image.fromarray(((np.asarray(img.getchannel("A")) > 0).astype(np.uint8) * 255), "L")
+        return cls(img, mask, find_islands(mask), origin)
+
+    @classmethod
+    def load(cls, path: str | Path, origin: str = "bundled") -> "TabardGuide":
+        return cls.from_image(open_rgba(path), origin)
+
+    def scaled(self, size: int) -> "TabardGuide":
+        if self.size == (size, size):
+            return self
+        img = self.image.resize((size, size), Image.NEAREST)
+        mask = self.mask.resize((size, size), Image.NEAREST)
+        return TabardGuide(img, mask, find_islands(mask), self.origin)
+
+    def panel_mask(self, panel: str) -> Image.Image:
+        """The mask limited to one panel's box."""
+        l, t, r, b = self.islands[panel]
+        m = np.zeros(self.mask.size[::-1], np.uint8)
+        m[t:b, l:r] = np.asarray(self.mask)[t:b, l:r]
+        return Image.fromarray(m, "L")
+
+    def wireframe(self) -> np.ndarray:
+        """True where the layout draws its (opaque, dark) mesh lines."""
+        a = np.asarray(self.image)
+        return (a[..., 3] > 200) & (a[..., :3].max(axis=2) < 110)
+
+    def preview_overlay(self, active: str | None = None, show_grid: bool = False) -> Image.Image:
+        """Drawn over the preview: outside the panels darkened, the panel not being edited
+        dimmed, and optionally the mesh lines so seams and the belt line show."""
+        m = np.asarray(self.mask) > 0
+        W, H = self.size
+        out = np.zeros((H, W, 4), np.uint8)
+        out[~m] = (24, 24, 28, 215)
+        if active in self.islands:
+            other = "back" if active == "front" else "front"
+            l, t, r, b = self.islands[other]
+            sub = np.zeros_like(m)
+            sub[t:b, l:r] = m[t:b, l:r]
+            out[sub] = (24, 24, 28, 120)
+        if show_grid:
+            out[self.wireframe()] = (20, 20, 20, 150)
+        return Image.fromarray(out, "RGBA")
+
+
+def find_islands(mask: Image.Image) -> dict[str, tuple[int, int, int, int]]:
+    """The front (left) and back (right) panels: the two runs of non-empty columns."""
+    m = np.asarray(mask) > 0
+    cols = m.any(axis=0)
+    runs, start = [], None
+    for x, on in enumerate(list(cols) + [False]):
+        if on and start is None:
+            start = x
+        elif not on and start is not None:
+            runs.append((start, x))
+            start = None
+    if len(runs) != 2:
+        raise ValueError(f"expected two panels side by side in the UV layout, found {len(runs)}")
+    out = {}
+    for name, (l, r) in zip(PANELS, runs):
+        rows = np.where(m[:, l:r].any(axis=1))[0]
+        out[name] = (l, int(rows[0]), r, int(rows[-1]) + 1)
+    return out
+
+
+def tabard_bleed_px(size: int) -> int:
+    return max(1, round(TABARD_BLEED_PX * size / TABARD_REFERENCE_SIZE))
+
+
+def back_same_placement(front: Placement, guide: TabardGuide) -> Placement:
+    """The front placement moved onto the back panel: same size, same spot relative to the panel."""
+    fl, ft, fr, fb = guide.islands["front"]
+    bl, bt, br, bb = guide.islands["back"]
+    dx = (bl + br) / 2 - (fl + fr) / 2
+    dy = (bt + bb) / 2 - (ft + fb) / 2
+    return Placement(front.scale, front.ox + dx, front.oy + dy)
+
+
+def _flip_box(img: Image.Image, box: tuple[int, int, int, int]) -> Image.Image:
+    part = img.crop(box).transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+    out = img.copy()
+    out.paste(part, box[:2])
+    return out
+
+
+def _clip(img: Image.Image, mask: Image.Image) -> Image.Image:
+    a = np.asarray(img).copy()
+    a[np.asarray(mask) == 0] = 0
+    return Image.fromarray(a, "RGBA")
+
+
+def _flatten(layer: Image.Image, mask: Image.Image, colour: tuple[int, int, int]) -> Image.Image:
+    """The layer composited over a solid colour inside ``mask``: opaque there, empty elsewhere."""
+    base = Image.new("RGBA", layer.size, (*colour, 255))
+    flat = Image.alpha_composite(base, layer)
+    return _clip(flat, mask)
+
+
+def render_tabard_panel(style: TabardStyle, guide: TabardGuide, panel: str, omit_art: bool = False) -> Image.Image:
+    """One panel of a style's pattern, clipped to that panel, before edge bleed."""
+    size = guide.size
+    pmask = guide.panel_mask(panel)
+    art: Art | None = None
+    placement: Placement | None = None
+    if panel == "front":
+        art, placement = style, style.placement
+    elif style.back_mode == BACK_SAME:
+        art = style
+        placement = back_same_placement(style.placement, guide) if style.placement else None
+    elif style.back_mode == BACK_OWN and style.back is not None:
+        art, placement = style.back, style.back.placement
+
+    if omit_art or art is None or placement is None:
+        layer = Image.new("RGBA", size, (0, 0, 0, 0))
+    else:
+        layer = render_placed(art.source, placement, size, art.rotation)
+        if panel == "back" and BACK_MIRRORED:
+            layer = _flip_box(layer, guide.islands["back"])
+        layer = _clip(layer, pmask)
+
+    plain_back = panel == "back" and (style.back_mode == BACK_COLOUR or
+                                      (style.back_mode == BACK_OWN and style.back is None))
+    if plain_back or not style.keep_holes:
+        return _flatten(layer, pmask, style.background)
+    return layer
+
+
+def render_tabard_pattern(style: TabardStyle, guide: TabardGuide, bleed: bool = True,
+                          omit: str | None = None) -> Image.Image:
+    """PatternN.png. Front art on the left panel, back on the right, each clipped to its own
+    panel and edge-bled separately (so the colours never meet in the narrow gutter).
+    ``omit`` leaves one panel's art out (the preview draws that one live)."""
+    size = guide.size
+    if style.sheet:
+        img = style.source if style.source.size == size else style.source.resize(size, Image.LANCZOS)
+        if not style.keep_holes:
+            # flatten inside the panels only; anything painted outside them is kept as it is
+            flat = _flatten(img, guide.mask, style.background)
+            inside = np.asarray(guide.mask) > 0
+            a = np.asarray(img).copy()
+            a[inside] = np.asarray(flat)[inside]
+            img = Image.fromarray(a, "RGBA")
+        return img
+    out = Image.new("RGBA", size, (0, 0, 0, 0))
+    px = tabard_bleed_px(size[0])
+    for panel in PANELS:
+        layer = render_tabard_panel(style, guide, panel, omit_art=omit == panel)
+        if bleed:
+            layer = edge_bleed(layer, guide.panel_mask(panel), px)
+        out = Image.alpha_composite(out, layer)
+    return out
+
+
+def holes_preview(img: Image.Image) -> Image.Image:
+    """What the game draws: alpha under 50% is a hole, the rest is solid."""
+    a = np.asarray(img.convert("RGBA")).copy()
+    a[..., 3] = np.where(a[..., 3] >= HOLE_ALPHA, 255, 0)
+    return Image.fromarray(a, "RGBA")
+
+
+def hole_fraction(pattern: Image.Image, guide: TabardGuide) -> float:
+    """Share of panel pixels that will be holes in game."""
+    inside = np.asarray(guide.mask) > 0
+    if not inside.any():
+        return 0.0
+    alpha = np.asarray(pattern.convert("RGBA").getchannel("A"))
+    return float((alpha[inside] < HOLE_ALPHA).mean())
+
+
+def make_tabard_icon(pattern: Image.Image, size: int = TABARD_ICON_SIZE) -> Image.Image:
+    """The icon TabardShare makes when there's no IconN.png: the front panel (left half),
+    fitted at 96%, centred, with the same 50% alpha cut as in game."""
+    half = pattern.crop((0, 0, pattern.width // 2, pattern.height))
+    s = min(size / half.width, size / half.height) * 0.96
+    w, h = max(1, round(half.width * s)), max(1, round(half.height * s))
+    icon = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    icon.paste(half.resize((w, h), Image.LANCZOS), ((size - w) // 2, (size - h) // 2))
+    return holes_preview(icon)

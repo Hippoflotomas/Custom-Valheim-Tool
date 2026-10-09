@@ -9,9 +9,19 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFormLayout, Q
 from .. import gamedata as gd
 from .. import imaging
 from ..guides import GuideStore
-from ..model import GENERIC_ID, Item, apply_recipe, id_from_name, id_problem, matches_recipe
+from ..model import GENERIC_ID, Item, apply_recipe, id_from_name, id_problem, matches_recipe, rescale_placements
 from .art_editor import ArtEditor
 from .requirements import RequirementsEditor
+
+
+ID_WARNINGS = {
+    gd.SHIELD: "Don't change the ID once the pack is in use: crafted shields remember it, and a renamed "
+               "shield turns into a “missing” placeholder.",
+    gd.BANNER: "Don't change the ID once the pack is in use: placed banners remember it, and a renamed "
+               "banner turns into a “missing” placeholder.",
+    gd.TABARD: "Don't change the ID once the pack is in use: crafted tabards remember it, and a renamed one "
+               "turns into a magenta-and-black “missing” tabard. ‘Test’ is taken by TabardShare's test tabard.",
+}
 
 
 class AdvancedLayers(QGroupBox):
@@ -27,8 +37,7 @@ class AdvancedLayers(QGroupBox):
         self.body = QWidget()
         self.form = QFormLayout(self.body)
         outer = QVBoxLayout(self)
-        note = QLabel("These follow the model's UV layout, not the face, and are never cropped or "
-                      "resized. See the mod's _Templates\\<Prefab> - UV layout.png.")
+        self.note = note = QLabel()
         note.setWordWrap(True)
         note.setStyleSheet("color: gray;")
         outer.addWidget(note)
@@ -37,8 +46,17 @@ class AdvancedLayers(QGroupBox):
         self.body.setVisible(False)
         self.last_dir = ""
 
+    NOTES = {
+        gd.TABARD: ("These use the same layout as the patterns (front on the left half, back on the right, "
+                    "see the mod's _Templates\\Tabard - UV layout.png), are shared by every style, and are "
+                    "copied as-is: never cropped or resized. Make them the same size as the patterns."),
+    }
+    DEFAULT_NOTE = ("These follow the model's UV layout, not the face, and are never cropped or "
+                    "resized. See the mod's _Templates\\<Prefab> - UV layout.png.")
+
     def set_item(self, kind: str, item: Item | None) -> None:
         self.kind, self.item = kind, item
+        self.note.setText(self.NOTES.get(kind, self.DEFAULT_NOTE))
         while self.form.rowCount():
             self.form.removeRow(0)
         if item is None:
@@ -114,10 +132,7 @@ class ItemEditor(QWidget):
         self.id.setPlaceholderText("Folder name, e.g. HB_BlackDog")
         self.id_msg = QLabel()
         self.id_msg.setWordWrap(True)
-        id_warn = QLabel("Don't change the ID once the pack is in use: placed banners and crafted shields "
-                         "remember it, and a renamed item turns into a “missing” placeholder. "
-                         "IDs must be unique across every pack a player installs, so a prefix like "
-                         "‘YourName_’ helps.")
+        self.id_warn = id_warn = QLabel()
         id_warn.setWordWrap(True)
         id_warn.setStyleSheet("color: gray;")
         id_box.addWidget(self.id)
@@ -133,7 +148,14 @@ class ItemEditor(QWidget):
         form.addRow("", self.desc_note)
 
         self.prefab = QComboBox()
-        form.addRow("Base prefab", self.prefab)
+        self.prefab_label = QLabel("Base prefab")
+        form.addRow(self.prefab_label, self.prefab)
+        self.tex_size = QComboBox()
+        for n in gd.TABARD_SIZES:
+            self.tex_size.addItem(f"{n} × {n}" + ("  (detailed; 4× the memory)" if n > 1024 else ""), n)
+        self.tex_size.setToolTip("Size of each PatternN.png. 1024 is the reference; 2048 for fine detail.")
+        self.tex_size_label = QLabel("Texture size")
+        form.addRow(self.tex_size_label, self.tex_size)
         self.station = QComboBox()
         form.addRow("Crafting station", self.station)
         self.min_level = QSpinBox()
@@ -168,6 +190,7 @@ class ItemEditor(QWidget):
         self.id.textEdited.connect(self._id_edited)
         self.desc.textChanged.connect(self._desc_changed)
         self.prefab.currentIndexChanged.connect(self._prefab_changed)
+        self.tex_size.currentIndexChanged.connect(self._tex_size_changed)
         self.station.currentIndexChanged.connect(self._station_changed)
         self.min_level.valueChanged.connect(self._min_level_changed)
         self.hidden.toggled.connect(self._hidden_changed)
@@ -180,11 +203,27 @@ class ItemEditor(QWidget):
         self.kind = kind
         self._loading = True
         self._fill_combos()
-        shield = kind == gd.SHIELD
-        self.min_level.setVisible(shield)
-        self.min_level_label.setVisible(shield)
-        self.desc_note.setVisible(not shield)
-        self.art_group.setTitle("Styles (1–16, list order = style order)" if shield else "Banner image")
+        self.min_level.setVisible(gd.has_min_level(kind))
+        self.min_level_label.setVisible(gd.has_min_level(kind))
+        self.prefab.setVisible(gd.has_base_prefab(kind))
+        self.prefab_label.setVisible(gd.has_base_prefab(kind))
+        self.tex_size.setVisible(kind == gd.TABARD)
+        self.tex_size_label.setVisible(kind == gd.TABARD)
+        self.desc_note.setVisible(kind == gd.BANNER)
+        self.art_group.setTitle({
+            gd.SHIELD: "Styles (1–16, list order = style order)",
+            gd.TABARD: "Styles (1–16, list order = style order). Front = left half of the pattern, back = right half",
+        }.get(kind, "Banner image"))
+        self.id_warn.setText(ID_WARNINGS[kind] + " IDs must be unique across every pack a player installs, "
+                             "so a prefix like ‘YourName_’ helps.")
+        if gd.has_base_prefab(kind):
+            self.recipe_btn.setText("Reset to base prefab's recipe")
+            self.recipe_btn.setToolTip("Station, min level and requirements from the vanilla recipe of the "
+                                       "chosen base prefab")
+        else:
+            self.recipe_btn.setText("Reset to default recipe")
+            self.recipe_btn.setToolTip("Workbench, level 1, 4 leather scraps: what TabardShare uses when the "
+                                       "pack doesn't say")
         self._loading = False
 
     def _fill_combos(self) -> None:
@@ -211,7 +250,9 @@ class ItemEditor(QWidget):
             self._select_data(self.station, item.station)
             self.min_level.setValue(max(1, item.min_station_level))
             self.hidden.setChecked(item.hidden)
-            self.reqs.set_requirements(item.requirements, per_level=self.kind == gd.SHIELD)
+            self.reqs.set_requirements(item.requirements, per_level=gd.has_per_level(self.kind))
+            i = self.tex_size.findData(item.texture_size)
+            self.tex_size.setCurrentIndex(i if i >= 0 else 0)
         self.art.set_item(self.kind, item)
         self.advanced.set_item(self.kind, item)
         self._loading = False
@@ -264,7 +305,7 @@ class ItemEditor(QWidget):
         if not self.item:
             self.id_msg.clear()
             return
-        prob = id_problem(self.item.id)
+        prob = id_problem(self.item.id, self.kind)
         dupes = self._dupes
         if prob:
             self._set_id_msg(prob, True)
@@ -322,7 +363,7 @@ class ItemEditor(QWidget):
         self._loading = True
         self._select_data(self.station, self.item.station)
         self.min_level.setValue(self.item.min_station_level)
-        self.reqs.set_requirements(self.item.requirements, per_level=self.kind == gd.SHIELD)
+        self.reqs.set_requirements(self.item.requirements, per_level=gd.has_per_level(self.kind))
         self._loading = False
 
     def _reset_recipe(self) -> None:
@@ -335,6 +376,18 @@ class ItemEditor(QWidget):
         p = gd.prefab(self.kind, self.item.base_prefab) if self.item else None
         self.recipe_btn.setVisible(bool(p and p.recipe))
         self.recipe_btn.setEnabled(bool(p and p.recipe) and not matches_recipe(self.kind, self.item, p.id))
+
+    def _tex_size_changed(self, _):
+        if self._loading or not self.item:
+            return
+        new = int(self.tex_size.currentData())
+        old = self.item.texture_size
+        if new == old:
+            return
+        rescale_placements(self.item, new / old)   # same look at the new resolution
+        self.item.texture_size = new
+        self.art.refresh()
+        self._emit()
 
     def _station_changed(self, _):
         if self.item and not self._loading:

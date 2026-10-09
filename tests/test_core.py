@@ -307,6 +307,219 @@ def test_prefab_recipes():
     assert "Flametal" != gd.items()[0].id and any(i.id == "FlametalNew" and i.name == "Flametal" for i in gd.items())
 
 
+
+# ---------------------------------------------------------------- tabards
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+FRONT_BOX = (18, 21, 506, 1007)
+BACK_BOX = (516, 18, 1006, 1006)
+
+
+def solid(w, h, color):
+    return Image.new("RGBA", (w, h), color)
+
+
+def build_tabard_pack(tmp: Path) -> tuple[Pack, GuideStore]:
+    from packbuilder.model import BACK_OWN, TabardStyle
+    guides = GuideStore(templates(tmp), tabard_templates_dir=tmp / "no_tabard_templates")
+    pack = Pack(gd.TABARD)
+    it = pack.new_item()
+    it.display_name, it.id = "Black Dog Tabard", "HB_BlackDog"
+    it.station = "none"
+    it.requirements = [Requirement("LeatherScraps", 4, 3)]   # per-level must never be written
+    it.art = [TabardStyle(solid(600, 1200, (220, 0, 0, 255)), "red.png"),
+              TabardStyle(solid(600, 1200, (220, 0, 0, 255)), "red.png", back_mode=BACK_OWN,
+                          back=Art(solid(600, 1200, (0, 0, 220, 255)), "blue.png"))]
+    return pack, guides
+
+
+def test_tabard_gamedata_and_ids():
+    from packbuilder.model import id_problem
+    assert gd.normalise_station(gd.TABARD, "") == "piece_workbench"
+    assert gd.normalise_station(gd.TABARD, "none") == "none"
+    assert gd.normalise_station(gd.TABARD, "Black forge") == "blackforge"
+    assert gd.station_name(gd.TABARD, "none") == "None"
+    assert id_problem("Test", gd.TABARD) and id_problem("TEST", gd.TABARD)
+    assert id_problem("Test", gd.SHIELD) is None
+    assert gd.has_per_level(gd.SHIELD) and not gd.has_per_level(gd.TABARD)
+    assert not gd.has_base_prefab(gd.TABARD) and gd.has_min_level(gd.TABARD)
+    it = Pack(gd.TABARD).new_item()
+    assert it.station == "piece_workbench" and [(r.item, r.amount) for r in it.requirements] == [("LeatherScraps", 4)]
+
+
+def test_tabard_layout_islands():
+    from packbuilder.guides import bundled_tabard_layout
+    g = bundled_tabard_layout()
+    assert g.size == (1024, 1024)
+    assert g.islands == {"front": FRONT_BOX, "back": BACK_BOX}
+    m = np.asarray(g.mask) > 0
+    assert m[500, 250] and m[500, 760] and not m[500, 511] and not m[2, 2]
+    g2 = g.scaled(2048)
+    assert g2.islands["front"] == tuple(2 * v for v in FRONT_BOX)
+
+
+def test_tabard_export_and_reopen(tmp_path: Path | None = None):
+    tmp = Path(tmp_path or tempfile.mkdtemp())
+    pack, guides = build_tabard_pack(tmp)
+    out = tmp / "MyTabards.zip"
+    issues = packio.export_pack(pack, str(out), guides)
+    assert not any(i.error for i in issues), issues
+    with zipfile.ZipFile(out) as z:
+        names = sorted(z.namelist())
+        assert names == ["HB_BlackDog/Pattern1.png", "HB_BlackDog/Pattern2.png", "HB_BlackDog/Tabard.json"], names
+        j = json.loads(z.read("HB_BlackDog/Tabard.json"))
+        assert j["craftingStation"] == "none"
+        assert "basePrefab" not in j and "styleCount" not in j
+        assert j["requirements"] == [{"item": "LeatherScraps", "amount": 4}]
+        assert j["minStationLevel"] == 1
+        p1 = np.asarray(Image.open(io.BytesIO(z.read("HB_BlackDog/Pattern1.png"))).convert("RGBA"))
+        p2 = np.asarray(Image.open(io.BytesIO(z.read("HB_BlackDog/Pattern2.png"))).convert("RGBA"))
+    assert p1.shape == (1024, 1024, 4)
+    g = packio.tabard_guide(pack.items[0], guides)
+    inside = np.asarray(g.mask) > 0
+    assert (p1[..., 3][inside] == 255).all()                  # flattened: no holes
+    assert (p1[500, 250, :3] == (220, 0, 0)).all() and (p1[500, 760, :3] == (220, 0, 0)).all()   # back = front
+    assert (p2[500, 250, :3] == (220, 0, 0)).all() and (p2[500, 760, :3] == (0, 0, 220)).all()   # own back
+    # bleed doesn't bridge the gutter: no purple anywhere
+    r, b = p2[..., 0].astype(int), p2[..., 2].astype(int)
+    assert not ((r > 20) & (b > 20) & (p2[..., 3] > 0)).any()
+    assert p2[500, 510, 3] == 0 and p2[500, 511, 3] == 0      # gutter centre stays empty
+    assert p2[500, 506, 3] > 0 and p2[500, 514, 3] > 0        # ...but each panel bled a little
+
+    pack2, notes = packio.open_pack(str(out))
+    assert pack2.kind == gd.TABARD and not notes, notes
+    it = pack2.items[0]
+    assert it.station == "none" and it.texture_size == 1024 and len(it.art) == 2
+    assert all(s.sheet for s in it.art)
+    out2 = tmp / "again.zip"
+    assert not any(i.error for i in packio.export_pack(pack2, str(out2), guides))
+    with zipfile.ZipFile(out2) as z:
+        again = np.asarray(Image.open(io.BytesIO(z.read("HB_BlackDog/Pattern2.png"))).convert("RGBA"))
+    assert np.abs(again.astype(int) - p2.astype(int)).max() <= 1
+
+
+def test_tabard_front_art_stays_on_front():
+    from packbuilder.model import BACK_COLOUR, TabardStyle
+    pack = Pack(gd.TABARD)
+    it = pack.new_item()
+    st = TabardStyle(solid(100, 100, (0, 200, 0, 255)), "green.png", back_mode=BACK_COLOUR, background=(255, 255, 255))
+    it.art = [st]
+    packio.ensure_style_placements(it, st, None)
+    st.placement = Placement(20.0, 0.0, 0.0)            # huge: covers the whole sheet
+    img = np.asarray(packio.render_tabard_style(it, st, None))
+    assert (img[500, 250, :3] == (0, 200, 0)).all()
+    assert (img[500, 760, :3] == (255, 255, 255)).all()  # back panel is plain, not green
+
+
+def test_tabard_holes_and_2048(tmp_path: Path | None = None):
+    from packbuilder.model import TabardStyle, rescale_placements
+    tmp = Path(tmp_path or tempfile.mkdtemp())
+    pack, guides = build_tabard_pack(tmp)
+    it = pack.items[0]
+    st = it.art[0]
+    st.source = art(300, 300)            # transparent margin round a red square
+    st.placement = None
+    st.keep_holes = True
+    msgs = [str(i) for i in packio.validate(pack, guides)]
+    assert any("holes" in m for m in msgs), msgs
+    st.keep_holes = False
+    assert not any("holes" in str(i) for i in packio.validate(pack, guides))
+    img = np.asarray(packio.render_tabard_style(it, st, guides))
+    g = packio.tabard_guide(it, guides)
+    assert np.asarray(g.mask)[60, 100] and (img[60, 100] == (*model_linen(), 255)).all()   # linen where the art is clear
+    assert (img[500, 250, :3] == (200, 30, 30)).all()
+    packio.ensure_style_placements(it, st, guides)
+    before = st.placement
+    rescale_placements(it, 2.0)
+    it.texture_size = 2048
+    assert st.placement.scale == before.scale * 2
+    out = tmp / "big.zip"
+    assert not any(i.error for i in packio.export_pack(pack, str(out), guides))
+    with zipfile.ZipFile(out) as z:
+        assert Image.open(io.BytesIO(z.read("HB_BlackDog/Pattern1.png"))).size == (2048, 2048)
+
+
+def model_linen():
+    from packbuilder.model import LINEN
+    return LINEN
+
+
+def test_tabard_custom_icon_survives(tmp_path: Path | None = None):
+    tmp = Path(tmp_path or tempfile.mkdtemp())
+    pack, guides = build_tabard_pack(tmp)
+    icon = imaging.png_bytes(solid(128, 128, (1, 2, 3, 255)))
+    pack.items[0].art[1].icon = icon
+    out = tmp / "icons.zip"
+    assert not any(i.error for i in packio.export_pack(pack, str(out), guides))
+    with zipfile.ZipFile(out) as z:
+        assert "HB_BlackDog/Icon2.png" in z.namelist() and "HB_BlackDog/Icon1.png" not in z.namelist()
+    pack2, _ = packio.open_pack(str(out))
+    assert pack2.items[0].art[0].icon is None and pack2.items[0].art[1].icon == icon
+    # reorder: the icon moves with its style
+    pack2.items[0].art.reverse()
+    out2 = tmp / "icons2.zip"
+    assert not any(i.error for i in packio.export_pack(pack2, str(out2), guides))
+    with zipfile.ZipFile(out2) as z:
+        assert z.read("HB_BlackDog/Icon1.png") == icon and "HB_BlackDog/Icon2.png" not in z.namelist()
+
+
+def test_tabard_icon_is_front_panel():
+    pattern = Image.new("RGBA", (1024, 1024), (0, 0, 255, 255))
+    pattern.paste((255, 0, 0, 255), (0, 0, 512, 1024))
+    icon = np.asarray(imaging.make_tabard_icon(pattern))
+    assert icon.shape == (128, 128, 4)
+    assert (icon[64, 64, :3] == (255, 0, 0)).all() and icon[64, 0, 3] == 0
+
+
+def test_open_tabard_example_pack():
+    pack, notes = packio.open_pack(str(FIXTURES / "TabardShare_ExamplePack.zip"))
+    assert pack.kind == gd.TABARD
+    by_id = {it.id: it for it in pack.items}
+    assert set(by_id) == {"Example_Heraldry", "Example_Plain"}
+    h = by_id["Example_Heraldry"]
+    assert h.station == "piece_workbench" and len(h.art) == 3
+    assert [(r.item, r.amount) for r in h.requirements] == [("Wood", 1)]
+    plain = by_id["Example_Plain"]
+    assert plain.display_name == "Example Plain"
+    assert [(r.item, r.amount) for r in plain.requirements] == [("LeatherScraps", 4)]
+    assert plain.station == "piece_workbench"            # empty means the workbench in TabardShare
+    assert any("Example_Plain" in n and "leather" in n for n in notes)
+    assert not any(i.error for i in packio.validate(pack, None))
+
+
+def test_tabard_open_rejects_mixed(tmp_path: Path | None = None):
+    tmp = Path(tmp_path or tempfile.mkdtemp())
+    p = tmp / "mixed.zip"
+    with zipfile.ZipFile(p, "w") as z:
+        z.writestr("A/Tabard.json", "{}")
+        z.writestr("B/shield.json", "{}")
+    try:
+        packio.open_pack(str(p))
+    except packio.PackReadError as ex:
+        assert "mixes" in str(ex)
+    else:
+        raise AssertionError("mixed zip accepted")
+
+
+def test_tabard_validation():
+    from packbuilder.model import BACK_OWN, TabardStyle
+    pack = Pack(gd.TABARD)
+    it = pack.new_item()
+    it.id, it.display_name = "Test", "x"
+    msgs = "\n".join(str(i) for i in packio.validate(pack, None) if i.error)
+    assert "built-in test tabard" in msgs and "1 to 16 styles" in msgs and "base prefab" not in msgs
+    it.id = "HB_ok"
+    it.art = [TabardStyle(solid(800, 600, (0, 0, 0, 255)), "sheet.png", sheet=True)]
+    msgs = "\n".join(str(i) for i in packio.validate(pack, None) if i.error)
+    assert "must be square" in msgs
+    it.art = [TabardStyle(solid(40, 40, (0, 0, 0, 255)), "tiny.png", back_mode=BACK_OWN)]
+    warns = "\n".join(str(i) for i in packio.validate(pack, None) if not i.error)
+    assert "front (tiny.png) is enlarged" in warns and "has none" in warns
+    it.advanced["MetallicGlossMap.png"] = imaging.png_bytes(solid(512, 512, (0, 0, 0, 255)))
+    warns = "\n".join(str(i) for i in packio.validate(pack, None) if not i.error)
+    assert "MetallicGlossMap.png is 512x512" in warns
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
