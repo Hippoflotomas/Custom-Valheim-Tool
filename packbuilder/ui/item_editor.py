@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
-                               QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QSpinBox,
+                               QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QSizePolicy, QSpinBox,
                                QVBoxLayout, QWidget)
 
 from .. import gamedata as gd
@@ -150,6 +150,12 @@ class ItemEditor(QWidget):
         self.prefab = QComboBox()
         self.prefab_label = QLabel("Base prefab")
         form.addRow(self.prefab_label, self.prefab)
+        self.prefab_note = QLabel()
+        self.prefab_note.setWordWrap(True)
+        self.prefab_note.setStyleSheet("color: gray;")
+        self.prefab_note.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.prefab_note.setMinimumWidth(400)
+        form.addRow("", self.prefab_note)
         self.tex_size = QComboBox()
         for n in gd.TABARD_SIZES:
             self.tex_size.addItem(f"{n} × {n}" + ("  (detailed; 4× the memory)" if n > 1024 else ""), n)
@@ -372,7 +378,16 @@ class ItemEditor(QWidget):
             self._update_recipe_btn()
             self._emit()
 
+    def _update_prefab_note(self) -> None:
+        p = gd.prefab(self.kind, self.item.base_prefab) if self.item and gd.has_base_prefab(self.kind) else None
+        text = p.note if p else ""
+        if p and p.recipe is None:
+            text = (text + " " if text else "") + "It has no vanilla cost, so set the requirements yourself."
+        self.prefab_note.setText(text)
+        self.prefab_note.setVisible(bool(text))
+
     def _update_recipe_btn(self) -> None:
+        self._update_prefab_note()
         p = gd.prefab(self.kind, self.item.base_prefab) if self.item else None
         self.recipe_btn.setVisible(bool(p and p.recipe))
         self.recipe_btn.setEnabled(bool(p and p.recipe) and not matches_recipe(self.kind, self.item, p.id))

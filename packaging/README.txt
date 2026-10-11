@@ -32,6 +32,10 @@ MAKING A PACK
 
 Open pack... reads a pack zip back in, so you can fix it later. The zip is the save file.
 
+Banners: "Standing banner (BannerShare)" is BannerShare's own war standard. It needs
+BannerShare 1.2.0 or newer on every player's game, and it has no vanilla cost, so set
+its requirements yourself. Transparent parts of a banner picture are cut out of the cloth.
+
 
 SHIELDS NEED THE MOD'S PATTERN GUIDES
 -------------------------------------

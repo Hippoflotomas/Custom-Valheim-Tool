@@ -1,6 +1,6 @@
 {
   "_comment": "Prefabs and stations the form offers. Internal names are what gets written to the JSON. Edit freely when the game or the mods change.",
-  "_recipe_comment": "Each prefab's 'recipe' is the vanilla cost, used as the form's default when that prefab is picked. 'per_level' is Valheim's amountPerLevel: the quality-2 upgrade costs 1x it, quality 3 costs 2x. Source: valheim.weirdgloop.org (checked 2026-09-29). Banners and tabards have no upgrades. The tabard recipe is TabardShare's own default (TabardPack.ApplyDefaults).",
+  "_recipe_comment": "Each prefab's 'recipe' is the vanilla cost, used as the form's default when that prefab is picked. 'per_level' is Valheim's amountPerLevel: the quality-2 upgrade costs 1x it, quality 3 costs 2x. Source: valheim.weirdgloop.org (checked 2026-09-29). Banners and tabards have no upgrades. Prefabs without a 'recipe' (BannerShare's own StandardLarge, which has no vanilla cost) keep whatever cost the item already has. A prefab's optional 'note' is shown under the base prefab dropdown. The tabard recipe is TabardShare's own default (TabardPack.ApplyDefaults).",
 
   "stations": [
     {"name": "Workbench",     "shield": "piece_workbench",      "banner": "piece_workbench", "tabard": "piece_workbench"},
@@ -105,7 +105,9 @@
        {"item": "JuteBlue", "amount": 4}, {"item": "FineWood", "amount": 1}]}},
     {"id": "piece_cloth_hanging_door_blue2", "name": "Blue jute curtain", "size": [1500, 500],
      "recipe": {"station": "piece_workbench", "requirements": [
-       {"item": "JuteBlue", "amount": 4}, {"item": "FineWood", "amount": 1}]}}
+       {"item": "JuteBlue", "amount": 4}, {"item": "FineWood", "amount": 1}]}},
+    {"id": "StandardLarge", "name": "Standing banner (BannerShare)", "size": [1024, 1536],
+     "note": "BannerShare's own 4 m war standard on an iron pole with a stone foot. Stands on the ground, floors and slopes. Needs BannerShare 1.2.0 or newer (on every player's game)."}
   ],
 
   "tabard_prefabs": [

@@ -289,8 +289,13 @@ def test_prefab_recipes():
     from packbuilder.model import apply_recipe, matches_recipe
     # every prefab has a recipe, and every recipe item is in the picker list
     ids = {i.id for i in gd.items()}
+    # BannerShare's own bases have no vanilla cost and are the only prefabs allowed none
+    no_vanilla_cost = {"StandardLarge"}
     for kind in gd.KINDS:
         for p in gd.prefabs(kind):
+            if p.id in no_vanilla_cost:
+                assert p.recipe is None and p.note, p.id
+                continue
             assert p.recipe and p.recipe.requirements, p.id
             assert all(r.item in ids for r in p.recipe.requirements), p.id
     pack = Pack(gd.SHIELD)
@@ -518,6 +523,34 @@ def test_tabard_validation():
     it.advanced["MetallicGlossMap.png"] = imaging.png_bytes(solid(512, 512, (0, 0, 0, 255)))
     warns = "\n".join(str(i) for i in packio.validate(pack, None) if not i.error)
     assert "MetallicGlossMap.png is 512x512" in warns
+
+
+
+def test_banner_standing_large(tmp_path: Path | None = None):
+    """BannerShare 1.2.0's own standing banner: basePrefab StandardLarge, image exactly 2:3."""
+    from packbuilder.model import apply_recipe, matches_recipe
+    tmp = Path(tmp_path or tempfile.mkdtemp())
+    p = gd.prefab(gd.BANNER, "standardlarge")          # case-insensitive, like the mod
+    assert p and p.id == "StandardLarge" and p.size == (1024, 1536) and "1.2.0" in p.note
+    pack, guides = build_pack(tmp, gd.BANNER)
+    it = pack.items[0]
+    before = [(r.item, r.amount) for r in it.requirements]
+    assert not apply_recipe(gd.BANNER, it, "StandardLarge")   # no vanilla cost: the item's cost is kept
+    assert [(r.item, r.amount) for r in it.requirements] == before
+    assert not matches_recipe(gd.BANNER, it, "StandardLarge")
+    it.base_prefab = "StandardLarge"
+    it.art[0].placement = None
+    out = tmp / "Standing.zip"
+    issues = packio.export_pack(pack, str(out), guides)
+    assert not any(i.error for i in issues), issues
+    with zipfile.ZipFile(out) as z:
+        j = json.loads(z.read("HB_BlackDog/Banner.json"))
+        assert j["basePrefab"] == "StandardLarge"
+        assert Image.open(io.BytesIO(z.read("HB_BlackDog/MainTex.png"))).size == (1024, 1536)
+        assert Image.open(io.BytesIO(z.read("HB_BlackDog/Icon.png"))).size == (128, 128)
+    pack2, notes = packio.open_pack(str(out))
+    assert not notes and pack2.items[0].base_prefab == "StandardLarge"
+    assert pack2.items[0].art[0].source.size == (1024, 1536)
 
 
 if __name__ == "__main__":

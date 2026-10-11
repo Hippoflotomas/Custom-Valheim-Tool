@@ -115,6 +115,7 @@ class Prefab:
     name: str
     size: tuple[int, int]  # output (width, height) in pixels
     recipe: Recipe | None = None
+    note: str = ""         # shown under the base prefab dropdown (e.g. which mod version it needs)
 
 
 @dataclass(frozen=True)
@@ -148,7 +149,7 @@ def prefabs(kind: str) -> tuple[Prefab, ...]:
                 tuple(RecipePart(q["item"], int(q["amount"]), int(q.get("per_level", 0)) if has_per_level(kind) else 0)
                       for q in r.get("requirements", [])),
             )
-        out.append(Prefab(p["id"], p["name"], (int(p["size"][0]), int(p["size"][1])), recipe))
+        out.append(Prefab(p["id"], p["name"], (int(p["size"][0]), int(p["size"][1])), recipe, p.get("note", "")))
     return tuple(out)
 
 

@@ -94,7 +94,9 @@ If the app hits an unexpected error it shows a message and appends the details t
 - Shields: `<ID>/shield.json`, `Pattern1.png`… (512 wide, the guide's height), optional advanced layers.
   "None" station is written as `"none"`; `amountPerLevel` only when above 0; no `styleCount`.
 - Banners: `<ID>/Banner.json`, `MainTex.png`, generated 128×128 `Icon.png`, optional advanced layers.
-  "None" station is written as `""`; amounts are always explicit.
+  "None" station is written as `""`; amounts are always explicit. `StandardLarge` (BannerShare 1.2.0's
+  own standing banner) is 1024×1536, exactly 2:3; it has no vanilla cost, so picking it keeps the
+  item's current requirements. Transparent pixels are cut out of the cloth, so they're kept as-is.
 - Tabards: `<ID>/Tabard.json`, `Pattern1.png`… (square, 1024 or 2048), `IconN.png` only for custom icons,
   optional `BumpMap.png` / `MetallicGlossMap.png`. "None" station is written as `"none"` (an empty value
   would mean the workbench in TabardShare). No `basePrefab`, `styleCount` or `amountPerLevel`
